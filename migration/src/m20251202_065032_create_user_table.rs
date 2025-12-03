@@ -16,6 +16,7 @@ impl MigrationTrait for Migration {
                             .uuid()
                             .not_null()
                             .primary_key()
+                            .default(Expr::cust("gen_random_uuid()")) 
                     )
                     .col(
                         ColumnDef::new(Users::StudyGroup)

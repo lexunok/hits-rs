@@ -18,3 +18,8 @@ docker run -d \
 ```
 sea-orm-cli generate entity --output-dir ./entity/src --lib --entity-format dense --with-serde both
 ```
+
+# Сегодня будет дроп
+```
+cargo run -p migration -- fresh
+```

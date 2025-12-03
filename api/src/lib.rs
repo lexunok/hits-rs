@@ -9,6 +9,7 @@ use crate::handlers::main_router;
 mod utils;
 mod models;
 mod handlers;
+mod error;
 
 #[tokio::main]
 pub async fn start() -> anyhow::Result<()> {
@@ -27,7 +28,7 @@ pub async fn start() -> anyhow::Result<()> {
 
     let state = AppState { conn };
 
-    let app = Router::new().with_state(state).nest("/api", main_router());
+    let app = Router::new().nest("/api", main_router()).with_state(state);
 
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await.unwrap();
     tracing::debug!("listening on {}", listener.local_addr()?);

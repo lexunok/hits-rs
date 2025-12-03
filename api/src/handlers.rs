@@ -1,10 +1,10 @@
 use axum::Router;
 
-use crate::handlers::auth::auth_router;
+use crate::{AppState, handlers::auth::auth_router};
 
 pub mod auth;
 
-pub fn main_router() -> Router {
+pub fn main_router() -> Router<AppState> {
     Router::new()
         .nest("/auth", auth_router())
 }
