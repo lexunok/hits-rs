@@ -50,8 +50,3 @@ pub struct RegisterPayload {
     pub study_group: Option<String>,
     pub telephone: Option<String>,
 }
-
-#[derive(Debug, Serialize)]
-pub struct AuthResponse {
-    pub token: String,
-}

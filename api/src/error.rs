@@ -13,7 +13,8 @@ pub enum GlobalError {
     NotFound,
     BadRequest,
     InternalServerError,
-    DbErr(sea_orm::DbErr)
+    DbErr(sea_orm::DbErr),
+    Forbidden,
 }
 impl IntoResponse for GlobalError {
     fn into_response(self) -> Response {
@@ -27,7 +28,8 @@ impl IntoResponse for GlobalError {
             GlobalError::DbErr(e) => {
                 tracing::error!("Database error: {}", e);
                 (StatusCode::INTERNAL_SERVER_ERROR, "Database error")
-            }
+            },
+            GlobalError::Forbidden => (StatusCode::FORBIDDEN, "Forbidden"),
         };
         let body = Json(json!({
             "error": error_message,

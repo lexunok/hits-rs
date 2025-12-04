@@ -1,33 +1,21 @@
 use axum::{
     Json, Router, extract::State, http::StatusCode, response::IntoResponse, routing::{get, post}
 };
-use chrono::{Duration, Utc};
+use axum_extra::extract::CookieJar;
 use entity::users;
 use entity::users::Entity as User;
-use jsonwebtoken::{Header, encode};
+use jsonwebtoken::{Validation, decode};
 use sea_orm::ActiveModelTrait;
 use serde_json::json;
-use crate::{AppState, error::GlobalError, models::auth::{AuthResponse, LoginPayload, ProtectedResponse, RegisterPayload, Role}, utils::{Claims, KEYS, hash_password, verify_password}};
+use crate::{AppState, error::GlobalError, models::auth::{LoginPayload, ProtectedResponse, RegisterPayload, Role}, utils::auth::{Claims, KEYS, TokenType, generate_tokens, hash_password, verify_password}};
+use macros::has_role;
 
 pub fn auth_router() -> Router<AppState> {
     Router::new()
         .route("/login", post(login))
         .route("/registration-test", post(registration_test))
         .route("/protected", get(protected))
-}
-
-fn generate_token(sub: String) -> Result<String, GlobalError> {
-    let now = Utc::now();
-    let iat = now.timestamp() as usize;
-    let exp = (now + Duration::hours(24)).timestamp() as usize;
-
-    let claims = Claims {
-        sub,
-        iat,
-        exp,
-    };
-
-    return encode(&Header::default(), &claims, &KEYS.encoding).map_err(|_| GlobalError::TokenCreation);
+        .route("/refresh", post(refresh))
 }
 
 async fn login(
@@ -44,9 +32,8 @@ async fn login(
     if !verify_password(&user.password, &payload.password) {
         return Err(GlobalError::WrongCredentials);
     }
-    let token = generate_token(user.id.to_owned().to_string())?;
-
-    Ok(Json(AuthResponse { token }))
+    
+    generate_tokens(user.id.to_string(), user.roles)
 }
 
 async fn registration_test(
@@ -71,16 +58,39 @@ async fn registration_test(
 
     let user: users::Model= user.insert(&state.conn).await.map_err(GlobalError::DbErr)?;
 
-    let token = generate_token(user.id.to_owned().to_string())?;
-
-    Ok(Json(AuthResponse { token }))
+    generate_tokens(user.id.to_string(), user.roles)
 }
-async fn protected(claims: Claims) -> impl IntoResponse {
-    (
+
+pub async fn refresh(
+    jar: CookieJar
+) -> Result<impl IntoResponse, GlobalError> {
+
+    let refresh_cookie = jar
+        .get("refresh_token")
+        .ok_or(GlobalError::WrongCredentials)?;
+    
+    let refresh_token = refresh_cookie.value();
+
+    let token_data = decode::<Claims>(
+        refresh_token,
+        &KEYS.decoding,
+        &Validation::default()
+    ).map_err(|_| GlobalError::InvalidToken)?;
+
+    if token_data.claims.token_type != TokenType::Refresh {
+        return Err(GlobalError::InvalidToken);
+    }
+
+    generate_tokens(token_data.claims.sub, token_data.claims.roles)
+}
+
+#[has_role(Admin)]
+async fn protected(claims: Claims) -> Result<impl IntoResponse, GlobalError> {
+    Ok((
         StatusCode::OK,
         Json(ProtectedResponse {
             message: "Welcome to the protected area!".to_string(),
             user_id: claims.sub,
         }),
-    )
+    ))
 }
