@@ -47,9 +47,9 @@ async fn registration_test(
         Role::ProjectOffice,
         Role::Expert,
     ]
-    .iter()
-    .map(|r| r.to_string())
-    .collect();
+        .iter()
+        .map(|r| r.to_string())
+        .collect();
 
     let mut user = users::ActiveModel::from_json(json!(payload)).map_err(|_| GlobalError::BadRequest)?;
 

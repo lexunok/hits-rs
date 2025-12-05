@@ -1,6 +1,6 @@
+use async_trait::async_trait;
 use axum::{
-    extract::FromRequestParts,
-    http::request::Parts
+    extract::{FromRequestParts, Request}, http::request::Parts, middleware::Next, response::Response
 };
 use axum_extra::{
     extract::{CookieJar, cookie::{Cookie, SameSite}}
@@ -46,6 +46,34 @@ pub struct Claims {
     pub roles: Vec<String>,
 }
 
+pub async fn auth_middleware<B>(
+    mut req: Request<B>,
+    next: Next,
+) -> Result<Response, GlobalError> {
+    let jar = CookieJar::from_headers(req.headers());
+
+    let access_token = jar
+        .get("access_token")
+        .ok_or(GlobalError::WrongCredentials)?
+        .value()
+        .to_string();
+
+    let token_data = decode::<Claims>(
+        &access_token,
+        &KEYS.decoding,
+        &jsonwebtoken::Validation::default(),
+    )
+    .map_err(|_| GlobalError::InvalidToken)?;
+
+    if token_data.claims.token_type != TokenType::Access {
+        return Err(GlobalError::InvalidToken);
+    }
+
+    req.extensions_mut().insert(token_data.claims);
+
+    Ok(next.run(req).await)
+}
+
 impl<S> FromRequestParts<S> for Claims
 where
     S: Send + Sync,
@@ -54,9 +82,7 @@ where
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         
-        let jar = CookieJar::from_request_parts(parts, _state)
-                    .await
-                    .map_err(|_| GlobalError::WrongCredentials)?;
+        let jar = CookieJar::from_headers(&parts.headers);
 
         let access_token = jar
             .get("access_token")
