@@ -1,6 +1,8 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, FnArg, Ident, ItemFn, Pat, Type, punctuated::Punctuated, token::Comma};
+use syn::{
+    FnArg, Ident, ItemFn, Pat, Type, parse_macro_input, punctuated::Punctuated, token::Comma,
+};
 
 fn find_claims_arg(input: &mut ItemFn) -> syn::Result<(Ident, Box<Type>)> {
     let claims_arg = input.sig.inputs.iter_mut().find_map(|arg| {
@@ -53,11 +55,13 @@ pub fn has_role(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let check_code_as_tokenstream: TokenStream = check_code.into();
-    input.block.stmts.insert(0, parse_macro_input!(check_code_as_tokenstream as syn::Stmt));
+    input.block.stmts.insert(
+        0,
+        parse_macro_input!(check_code_as_tokenstream as syn::Stmt),
+    );
 
     quote! { #input }.into()
 }
-
 
 #[proc_macro_attribute]
 pub fn has_any_role(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -81,7 +85,10 @@ pub fn has_any_role(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let check_code_as_tokenstream: TokenStream = check_code.into();
-    input.block.stmts.insert(0, parse_macro_input!(check_code_as_tokenstream as syn::Stmt));
+    input.block.stmts.insert(
+        0,
+        parse_macro_input!(check_code_as_tokenstream as syn::Stmt),
+    );
 
     quote! { #input }.into()
 }
@@ -108,7 +115,10 @@ pub fn has_all_roles(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let check_code_as_tokenstream: TokenStream = check_code.into();
-    input.block.stmts.insert(0, parse_macro_input!(check_code_as_tokenstream as syn::Stmt));
+    input.block.stmts.insert(
+        0,
+        parse_macro_input!(check_code_as_tokenstream as syn::Stmt),
+    );
 
     quote! { #input }.into()
 }

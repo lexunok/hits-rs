@@ -1,15 +1,15 @@
 use std::env;
 
 use axum::Router;
-use migration::{MigratorTrait, Migrator};
+use migration::{Migrator, MigratorTrait};
 use sea_orm::{Database, DatabaseConnection};
 
 use crate::handlers::main_router;
 
-mod utils;
-mod models;
-mod handlers;
 mod error;
+mod handlers;
+mod models;
+mod utils;
 mod workers;
 
 #[tokio::main]
@@ -27,7 +27,7 @@ pub async fn start() -> anyhow::Result<()> {
     Migrator::up(&conn, None).await?;
     let redis_client = redis::Client::open(redis_url)?;
 
-    let state = AppState { conn, redis_client};
+    let state = AppState { conn, redis_client };
 
     let redis_clone = state.redis_client.clone();
     tokio::spawn(async move {

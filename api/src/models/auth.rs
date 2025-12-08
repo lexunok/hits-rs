@@ -1,9 +1,9 @@
-
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[serde(rename_all = "UPPERCASE")]
 pub enum Role {
     Initiator,
     Expert,
@@ -12,7 +12,7 @@ pub enum Role {
     Member,
     TeamLeader,
     TeamOwner,
-    Teacher
+    Teacher,
 }
 
 impl fmt::Display for Role {
@@ -47,6 +47,7 @@ pub struct RegisterPayload {
     pub password: String,
     pub last_name: String,
     pub first_name: String,
+    pub roles: Vec<Role>,
     pub study_group: Option<String>,
     pub telephone: Option<String>,
 }
