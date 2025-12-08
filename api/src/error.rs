@@ -14,6 +14,7 @@ pub enum GlobalError {
     BadRequest,
     InternalServerError,
     DbErr(sea_orm::DbErr),
+    RedisErr(redis::RedisError),
     Forbidden,
     Custom(String),
 }
@@ -29,6 +30,10 @@ impl IntoResponse for GlobalError {
             GlobalError::DbErr(e) => {
                 tracing::error!("Database error: {}", e);
                 (StatusCode::INTERNAL_SERVER_ERROR, "Database error".to_string())
+            },
+            GlobalError::RedisErr(e) => {
+                tracing::error!("Redis error: {}", e);
+                (StatusCode::INTERNAL_SERVER_ERROR, "Redis error".to_string())
             },
             GlobalError::Forbidden => (StatusCode::FORBIDDEN, "Forbidden".to_string()),
             GlobalError::Custom(s) => (StatusCode::BAD_REQUEST, s),
