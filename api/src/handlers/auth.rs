@@ -1,21 +1,19 @@
 use crate::{
     AppState,
     error::GlobalError,
-    models::auth::{LoginPayload, ProtectedResponse, RegisterPayload},
+    models::auth::{LoginPayload, RegisterPayload},
     utils::auth::{Claims, KEYS, TokenType, generate_tokens, hash_password, verify_password},
 };
 use axum::{
     Json, Router,
     extract::State,
-    http::StatusCode,
     response::IntoResponse,
-    routing::{get, post},
+    routing::post,
 };
 use axum_extra::extract::CookieJar;
 use entity::users;
 use entity::users::Entity as User;
 use jsonwebtoken::{Validation, decode};
-use macros::has_role;
 use sea_orm::ActiveModelTrait;
 use serde_json::json;
 
@@ -23,7 +21,6 @@ pub fn auth_router() -> Router<AppState> {
     Router::new()
         .route("/login", post(login))
         .route("/registration-test", post(registration_test))
-        .route("/protected", get(protected))
         .route("/refresh", post(refresh))
 }
 
@@ -91,15 +88,4 @@ pub async fn refresh(jar: CookieJar) -> Result<impl IntoResponse, GlobalError> {
         token_data.claims.last_name,
         token_data.claims.roles,
     )
-}
-
-#[has_role(Admin)]
-async fn protected(claims: Claims) -> Result<impl IntoResponse, GlobalError> {
-    Ok((
-        StatusCode::OK,
-        Json(ProtectedResponse {
-            message: "Welcome to the protected area!".to_string(),
-            user_id: claims.sub,
-        }),
-    ))
 }

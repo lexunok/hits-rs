@@ -26,7 +26,6 @@ impl MigrationTrait for Migration {
                     .col(
                         ColumnDef::new(Invitation::Email)
                             .string()
-                            .unique_key()
                             .not_null()
                     )
                     .col(

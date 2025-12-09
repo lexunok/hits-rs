@@ -30,12 +30,6 @@ impl fmt::Display for Role {
     }
 }
 
-#[derive(Debug, Serialize)]
-pub struct ProtectedResponse {
-    pub message: String,
-    pub user_id: String,
-}
-
 #[derive(Debug, Deserialize)]
 pub struct LoginPayload {
     pub email: String,
