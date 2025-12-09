@@ -1,7 +1,11 @@
+use anyhow::Ok as anyOk;
+use lettre::{AsyncSmtpTransport, Message, Tokio1Executor, AsyncTransport, message::header::ContentType};
 use redis::{
     streams::{StreamReadOptions, StreamReadReply},
     AsyncCommands,
 };
+use serde_json::json;
+use tera::{Context, Tera};
 
 const STREAM_NAME: &str = "invitations_stream";
 const GROUP_NAME: &str = "invitations_group";
@@ -47,6 +51,51 @@ pub async fn invitation_worker(redis_client: redis::Client) {
                             }
                         }
                     }
+                    let invitation_text = format!(
+                            "Вас пригласил(-а) зарегистрироваться на портал HITS {} {} \
+                            в качестве пользователя. Для регистрации на сервисе \
+                            перейдите по данной ссылке и заполните все поля.",
+                            sender_first_name,
+                            sender_last_name
+                        );
+
+                    let notification = json!({
+                        "consumerEmail": receiver,
+                        "title": "Приглашение на регистрацию",
+                        "message": invitation_text,
+                        "link": format!(
+                            //ЗАМЕНИТЬ НА HITS или DEV
+                            "https://authorization.example.com/auth/registration?code={}",
+                            id
+                        ),
+                        "buttonName": "Зарегистрироваться"
+                    });
+
+                    let result = (async {
+                        let tera = Tera::new("templates/**/*")?;
+                        let mut ctx = Context::new();
+                        ctx.insert("notification", &notification);
+                        let html = tera.render("notification.html", &ctx)?;
+
+                        let email = Message::builder()
+                            .from("hist@tyuiu.ru".parse().unwrap())
+                            .to(receiver.parse().unwrap())
+                            .subject("Приглашение на регистрацию")
+                            .header(ContentType::TEXT_HTML)
+                            .body(html)?;
+
+                        //ЗАМЕНИТЬ НА ПРОД/ДЕВ
+                        let mailer = AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous("smtp.tsogu.ru").build();
+
+                        mailer.send(email).await?;
+                        anyOk(())
+                    }).await;
+
+                    if let Err(e) = result {
+                        tracing::error!("Ошибка отправки {}", e);
+                        continue;
+                    }
+
                     tracing::debug!(
                         "Отправляем приглашение {} → {} ({}, {})",
                         id,
@@ -60,7 +109,7 @@ pub async fn invitation_worker(redis_client: redis::Client) {
                         .await;
 
                     if let Err(e) = ack_result {
-                        tracing::error!("Failed to acknowledge message {}: {}", msg_id, e);
+                        tracing::error!("Ошибка при ack {}: {}", msg_id, e);
                     }
                 }
             }
