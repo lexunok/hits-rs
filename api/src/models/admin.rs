@@ -1,5 +1,5 @@
-use serde::Deserialize;
 use crate::models::auth::Role;
+use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub struct InvitationPayload {

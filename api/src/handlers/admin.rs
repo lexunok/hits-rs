@@ -3,6 +3,7 @@ use crate::{
     error::GlobalError,
     models::admin::InvitationPayload,
     utils::{auth::Claims, common::CustomMessage},
+    workers::invitation_worker::INVITATIONS_STREAM_NAME,
 };
 use axum::{Json, Router, extract::State, response::IntoResponse, routing::post};
 use chrono::Local;
@@ -30,7 +31,7 @@ async fn send_invitations(
         .get_multiplexed_async_connection()
         .await
         .map_err(GlobalError::RedisErr)?;
-    
+
     let existing_users: Vec<String> = User::find()
         .select_only()
         .column(users::Column::Email)
@@ -63,7 +64,7 @@ async fn send_invitations(
         .emails
         .into_iter()
         .filter(|email| !existing_invitation_emails.contains(email))
-        .collect();   
+        .collect();
 
     if new_emails.is_empty() {
         return Ok(Json(CustomMessage {
@@ -93,7 +94,7 @@ async fn send_invitations(
     for invitation in &inserted_invitations {
         let _ = redis_con
             .xadd(
-                "invitations_stream",
+                INVITATIONS_STREAM_NAME,
                 "*",
                 &[
                     ("id", &invitation.id.to_string()),
@@ -105,7 +106,6 @@ async fn send_invitations(
             .await
             .map_err(GlobalError::RedisErr)?;
     }
-    
     txn.commit().await.map_err(GlobalError::DbErr)?;
 
     Ok(Json(CustomMessage {

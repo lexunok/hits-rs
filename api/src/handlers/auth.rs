@@ -4,12 +4,7 @@ use crate::{
     models::auth::{LoginPayload, RegisterPayload},
     utils::auth::{Claims, KEYS, TokenType, generate_tokens, hash_password, verify_password},
 };
-use axum::{
-    Json, Router,
-    extract::State,
-    response::IntoResponse,
-    routing::post,
-};
+use axum::{Json, Router, extract::State, response::IntoResponse, routing::post};
 use axum_extra::extract::CookieJar;
 use entity::users;
 use entity::users::Entity as User;

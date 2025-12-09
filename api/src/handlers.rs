@@ -1,9 +1,12 @@
 use axum::Router;
 
-use crate::{AppState, handlers::{admin::admin_router, auth::auth_router}};
+use crate::{
+    AppState,
+    handlers::{admin::admin_router, auth::auth_router},
+};
 
-pub mod auth;
 pub mod admin;
+pub mod auth;
 
 pub fn main_router() -> Router<AppState> {
     Router::new()
