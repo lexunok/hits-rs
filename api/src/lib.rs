@@ -1,4 +1,4 @@
-use crate::{handlers::main_router, workers::invitation_worker};
+use crate::{handlers::main_router, utils::auth::create_admin, workers::invitation_worker};
 use axum::Router;
 use migration::{Migrator, MigratorTrait};
 use sea_orm::{Database, DatabaseConnection};
@@ -20,9 +20,13 @@ pub async fn start() -> anyhow::Result<()> {
     let db_url = env::var("DATABASE_URL")?;
     let port = env::var("PORT")?;
     let redis_url = env::var("REDIS_URL")?;
+    let admin_username = env::var("ADMIN_USERNAME")?;
+    let admin_password = env::var("ADMIN_PASSWORD")?;
 
     let conn = Database::connect(db_url).await?;
     Migrator::up(&conn, None).await?;
+    create_admin(conn.clone(), admin_username, admin_password).await.unwrap();
+    
     let redis_client = redis::Client::open(redis_url)?;
 
     let state = AppState { conn, redis_client };

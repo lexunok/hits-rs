@@ -9,10 +9,37 @@ use axum_extra::extract::{
 };
 use chrono::{Duration, Utc};
 use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
+use sea_orm::{ActiveValue::Set, DbConn, ActiveModelTrait};
 use serde::{Deserialize, Serialize};
 use std::sync::LazyLock;
-
+use entity::users;
+use entity::users::Entity as User;
 use crate::error::GlobalError;
+
+pub async fn create_admin(db:DbConn, username: String, password: String) -> Result<(), GlobalError> {
+    let user: Option<users::Model> = User::find_by_email(username.clone())
+        .one(&db)
+        .await
+        .map_err(GlobalError::DbErr)?;
+
+    if let None = user {
+        
+        let user = users::ActiveModel {
+            first_name: Set("Живая".to_owned()),
+            last_name: Set("Легенда".to_owned()),
+            roles: Set(vec!["ADMIN".to_owned(), "INITIATOR".to_owned()]),
+            email: Set(username),
+            password: Set(hash_password(&password)?),
+            ..Default::default()
+        };
+
+        user.insert(&db).await.map_err(GlobalError::DbErr)?;
+    }
+
+    Ok(())
+}
+
+
 
 pub static KEYS: LazyLock<Keys> = LazyLock::new(|| {
     let secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");

@@ -4,26 +4,34 @@ use crate::{
     models::auth::{LoginPayload, RegisterPayload},
     utils::auth::{Claims, KEYS, TokenType, generate_tokens, hash_password, verify_password},
 };
-use axum::{Json, Router, extract::State, response::IntoResponse, routing::post};
+use axum::{Json, Router, extract::{Query, State}, response::IntoResponse, routing::post};
 use axum_extra::extract::CookieJar;
+use chrono::Local;
+use entity::invitation::{self, Entity as Invitation};
 use entity::users;
 use entity::users::Entity as User;
 use jsonwebtoken::{Validation, decode};
-use sea_orm::ActiveModelTrait;
+use sea_orm::{ActiveModelTrait,ColumnTrait, TransactionTrait, QueryFilter, EntityTrait, prelude::Uuid};
+use serde::Deserialize;
 use serde_json::json;
 
 pub fn auth_router() -> Router<AppState> {
     Router::new()
         .route("/login", post(login))
-        .route("/registration-test", post(registration_test))
+        .route("/registration", post(registration))
         .route("/refresh", post(refresh))
+}
+
+#[derive(Deserialize)]
+struct Params {
+    code: Uuid,
 }
 
 async fn login(
     State(state): State<AppState>,
     Json(payload): Json<LoginPayload>,
 ) -> impl IntoResponse {
-    let user: users::Model = User::find_by_email(payload.email)
+    let user: users::Model = User::find_by_email(payload.email.to_lowercase())
         .one(&state.conn)
         .await
         .map_err(GlobalError::DbErr)?
@@ -41,19 +49,49 @@ async fn login(
     )
 }
 
-async fn registration_test(
+async fn registration(
+    Query(params): Query<Params>,
     State(state): State<AppState>,
     Json(payload): Json<RegisterPayload>,
 ) -> Result<impl IntoResponse, GlobalError> {
+
+    let txn = state.conn.begin().await.map_err(GlobalError::DbErr)?;
+
+    let invitation: invitation::Model = Invitation::find_by_id(params.code)
+        .filter(invitation::Column::DateExpired.gt(Local::now()))
+        .one(&txn)
+        .await
+        .map_err(GlobalError::DbErr)?
+        .ok_or(GlobalError::NotFound)?;
+
     let mut user =
         users::ActiveModel::from_json(json!(payload)).map_err(|_| GlobalError::BadRequest)?;
 
     user.set(
+        users::Column::Email,
+        invitation.email.to_lowercase().into(),
+    );
+    user.set(
         users::Column::Password,
         hash_password(&payload.password)?.into(),
     );
+    user.set(
+        users::Column::Roles,
+        invitation.roles.clone().into(),
+    );
 
-    let user: users::Model = user.insert(&state.conn).await.map_err(GlobalError::DbErr)?;
+    let user: users::Model = user.insert(&txn).await.map_err(GlobalError::DbErr)?;
+
+    let mut invitation: invitation::ActiveModel = invitation.into();
+
+    invitation.set(
+        invitation::Column::DateExpired,
+        Local::now().into(),
+    );
+
+    invitation.update(&txn).await.map_err(GlobalError::DbErr)?;
+
+    txn.commit().await.map_err(GlobalError::DbErr)?;
 
     generate_tokens(
         user.id.to_string(),

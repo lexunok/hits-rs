@@ -1,8 +1,8 @@
 use crate::{
     AppState,
     error::GlobalError,
-    models::admin::InvitationPayload,
-    utils::{auth::Claims, common::CustomMessage},
+    models::admin::{InvitationPayload, RegisterPayload},
+    utils::{auth::{Claims, generate_tokens, hash_password}, common::CustomMessage},
     workers::invitation_worker::INVITATIONS_STREAM_NAME,
 };
 use axum::{Json, Router, extract::State, response::IntoResponse, routing::post};
@@ -13,11 +13,14 @@ use entity::{invitation, users};
 use macros::has_role;
 use redis::AsyncTypedCommands;
 use sea_orm::{
-    ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, TransactionTrait,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, TransactionTrait
 };
+use serde_json::json;
 
 pub fn admin_router() -> Router<AppState> {
-    Router::new().route("/invitations", post(send_invitations))
+    Router::new()
+        .route("/invitations", post(send_invitations))
+        .route("/registration", post(registration))
 }
 
 #[has_role(Admin)]
@@ -114,4 +117,28 @@ async fn send_invitations(
             inserted_invitations.len()
         ),
     }))
+}
+
+#[has_role(Admin)]
+async fn registration(
+    State(state): State<AppState>,
+    claims: Claims,
+    Json(payload): Json<RegisterPayload>,
+) -> Result<impl IntoResponse, GlobalError> {
+    let mut user =
+        users::ActiveModel::from_json(json!(payload)).map_err(|_| GlobalError::BadRequest)?;
+
+    user.set(
+        users::Column::Password,
+        hash_password(&payload.password)?.into(),
+    );
+
+    let user: users::Model = user.insert(&state.conn).await.map_err(GlobalError::DbErr)?;
+
+    generate_tokens(
+        user.id.to_string(),
+        user.first_name,
+        user.last_name,
+        user.roles,
+    )
 }

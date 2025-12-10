@@ -41,7 +41,6 @@ pub struct RegisterPayload {
     pub password: String,
     pub last_name: String,
     pub first_name: String,
-    pub roles: Vec<Role>,
     pub study_group: Option<String>,
     pub telephone: Option<String>,
 }
