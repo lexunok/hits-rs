@@ -3,4 +3,5 @@
 pub mod prelude;
 
 pub mod invitation;
+pub mod password_reset;
 pub mod users;

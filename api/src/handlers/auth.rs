@@ -1,30 +1,54 @@
 use crate::{
     AppState,
     error::GlobalError,
-    models::auth::{LoginPayload, RegisterPayload},
+    models::{auth::{InvitationResponse, LoginPayload, RegisterPayload}, common::{IdResponse, ParamsId}},
     utils::auth::{Claims, KEYS, TokenType, generate_tokens, hash_password, verify_password},
 };
-use axum::{Json, Router, extract::{Query, State}, response::IntoResponse, routing::post};
+use argon2::password_hash::rand_core::{OsRng, RngCore};
+use axum::{Json, Router, extract::{Path, Query, State}, response::IntoResponse, routing::{get, post}};
 use axum_extra::extract::CookieJar;
-use chrono::Local;
-use entity::invitation::{self, Entity as Invitation};
+use chrono::{Duration, Local};
+use entity::{invitation::{self, Entity as Invitation}, password_reset::{self, Entity as PasswordReset}};
 use entity::users;
 use entity::users::Entity as User;
 use jsonwebtoken::{Validation, decode};
-use sea_orm::{ActiveModelTrait,ColumnTrait, TransactionTrait, QueryFilter, EntityTrait, prelude::Uuid};
-use serde::Deserialize;
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, TransactionTrait, prelude::Uuid};
 use serde_json::json;
+use sea_orm::prelude::Expr;
 
 pub fn auth_router() -> Router<AppState> {
     Router::new()
+        .route("/invitation/:id", get(get_invitation))
         .route("/login", post(login))
         .route("/registration", post(registration))
         .route("/refresh", post(refresh))
+        .route("/recovery-password/:email", post(recovery_password))
+        .route("/new-password/:id", post(new_password))
 }
 
-#[derive(Deserialize)]
-struct Params {
-    code: Uuid,
+async fn get_invitation(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>
+) -> Result<impl IntoResponse, GlobalError> {
+    let mut invitation: invitation::ActiveModel = Invitation::find_by_id(id)
+        .filter(invitation::Column::DateExpired.gt(Local::now()))
+        .one(&state.conn)
+        .await
+        .map_err(GlobalError::DbErr)?
+        .ok_or(GlobalError::NotFound)?
+        .into_active_model();
+
+    invitation.set(
+        invitation::Column::DateExpired,
+        (Local::now() + Duration::hours(3)).into(),
+    );
+
+    let invitation: invitation::Model = invitation.update(&state.conn).await.map_err(GlobalError::DbErr)?;
+
+    Ok(Json(InvitationResponse{
+        email: invitation.email,
+        code: invitation.id
+    }))
 }
 
 async fn login(
@@ -50,14 +74,14 @@ async fn login(
 }
 
 async fn registration(
-    Query(params): Query<Params>,
+    Query(params): Query<ParamsId>,
     State(state): State<AppState>,
     Json(payload): Json<RegisterPayload>,
 ) -> Result<impl IntoResponse, GlobalError> {
 
     let txn = state.conn.begin().await.map_err(GlobalError::DbErr)?;
 
-    let invitation: invitation::Model = Invitation::find_by_id(params.code)
+    let invitation: invitation::Model = Invitation::find_by_id(params.id)
         .filter(invitation::Column::DateExpired.gt(Local::now()))
         .one(&txn)
         .await
@@ -121,4 +145,73 @@ pub async fn refresh(jar: CookieJar) -> Result<impl IntoResponse, GlobalError> {
         token_data.claims.last_name,
         token_data.claims.roles,
     )
+}
+
+async fn recovery_password(
+    State(state): State<AppState>,
+    Path(email): Path<String>
+) -> Result<impl IntoResponse, GlobalError> {
+    User::find_by_email(email.to_lowercase())
+        .one(&state.conn)
+        .await
+        .map_err(GlobalError::DbErr)?
+        .ok_or(GlobalError::NotFound)?;
+    
+    let mut rng = OsRng;
+    let random_u32 = rng.next_u32();
+    let code = (100_000 + (random_u32 % 900_000)).to_string();
+
+    let txn = state.conn.begin().await.map_err(GlobalError::DbErr)?;
+
+    PasswordReset::update_many()
+        .col_expr(
+            password_reset::Column::DateExpired, 
+            Expr::value(Local::now().naive_local())
+        )
+        .filter(password_reset::Column::Email.eq(email.clone()))
+        .filter(password_reset::Column::DateExpired.gt(Local::now()))
+        .exec(&txn)
+        .await
+        .map_err(GlobalError::DbErr)?;
+
+    let password_reset = password_reset::ActiveModel {
+            email: Set(email),
+            code: Set(code),
+            date_expired: Set((Local::now() + Duration::minutes(10)).into()),
+            ..Default::default()
+    };
+
+    let password_reset: password_reset::Model = password_reset.insert(&txn).await.map_err(GlobalError::DbErr)?;
+
+    //Отправляем на почту
+
+    txn.commit().await.map_err(GlobalError::DbErr)?;
+
+    Ok(Json(IdResponse{id: password_reset.id}))
+}
+
+async fn new_password(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>
+) -> Result<impl IntoResponse, GlobalError> {
+    let mut invitation: invitation::ActiveModel = Invitation::find_by_id(id)
+        .filter(invitation::Column::DateExpired.gt(Local::now()))
+        .one(&state.conn)
+        .await
+        .map_err(GlobalError::DbErr)?
+        .ok_or(GlobalError::NotFound)?
+        .into_active_model();
+
+        
+    invitation.set(
+        invitation::Column::DateExpired,
+        (Local::now() + Duration::hours(3)).into(),
+    );
+
+    let invitation: invitation::Model = invitation.update(&state.conn).await.map_err(GlobalError::DbErr)?;
+
+    Ok(Json(InvitationResponse{
+        email: invitation.email,
+        code: invitation.id
+    }))
 }

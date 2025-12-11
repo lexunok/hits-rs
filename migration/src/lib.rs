@@ -8,9 +8,10 @@ impl MigratorTrait for Migrator {
         vec![
             Box::new(m20251202_065032_create_user_table::Migration),
             Box::new(m20251205_050148_create_invitation_table::Migration),
+            Box::new(m20251211_060650_create_password_reset_table::Migration),
         ]
     }
 }
-
 mod m20251202_065032_create_user_table;
 mod m20251205_050148_create_invitation_table;
+mod m20251211_060650_create_password_reset_table;

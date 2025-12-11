@@ -1,5 +1,6 @@
 use std::fmt;
 
+use sea_orm::prelude::Uuid;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
@@ -43,4 +44,9 @@ pub struct RegisterPayload {
     pub first_name: String,
     pub study_group: Option<String>,
     pub telephone: Option<String>,
+}
+#[derive(Debug, Serialize)]
+pub struct InvitationResponse {
+    pub email: String,
+    pub code: Uuid,
 }

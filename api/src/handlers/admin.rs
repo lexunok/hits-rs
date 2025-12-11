@@ -1,8 +1,8 @@
 use crate::{
     AppState,
     error::GlobalError,
-    models::admin::{InvitationPayload, RegisterPayload},
-    utils::{auth::{Claims, generate_tokens, hash_password}, common::CustomMessage},
+    models::{admin::{InvitationPayload, RegisterPayload}, common::CustomMessage},
+    utils::auth::{Claims, generate_tokens, hash_password},
     workers::invitation_worker::INVITATIONS_STREAM_NAME,
 };
 use axum::{Json, Router, extract::State, response::IntoResponse, routing::post};
