@@ -1,18 +1,22 @@
 use crate::{
     AppState,
     error::GlobalError,
-    models::{admin::{InvitationPayload, RegisterPayload}, common::CustomMessage},
-    utils::auth::{Claims, generate_tokens, hash_password},
+    models::{
+        admin::{InvitationPayload, RegisterPayload},
+        common::CustomMessage,
+    },
+    utils::auth::{Claims, hash_password},
     workers::invitation_worker::INVITATIONS_STREAM_NAME,
 };
 use axum::{Json, Router, extract::State, response::IntoResponse, routing::post};
 use chrono::Local;
-use entity::invitation::Entity as Invitation;
-use entity::users::Entity as User;
-use entity::{invitation, users};
+use entity::{
+    invitation::{self, Entity as Invitation},
+    users::{self, Entity as User},
+};
 use macros::has_role;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter, QuerySelect
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter, QuerySelect,
 };
 use serde_json::json;
 
@@ -87,17 +91,16 @@ async fn send_invitations(
 
     let mut redis_pipe = redis::pipe();
     for invitation in &inserted_invitations {
-        redis_pipe
-            .xadd(
-                INVITATIONS_STREAM_NAME,
-                "*",
-                &[
-                    ("id", &invitation.id.to_string()),
-                    ("receiver", &invitation.email),
-                    ("sender_first_name", &claims.first_name),
-                    ("sender_last_name", &claims.last_name),
-                ],
-            );
+        redis_pipe.xadd(
+            INVITATIONS_STREAM_NAME,
+            "*",
+            &[
+                ("id", &invitation.id.to_string()),
+                ("receiver", &invitation.email),
+                ("sender_first_name", &claims.first_name),
+                ("sender_last_name", &claims.last_name),
+            ],
+        );
     }
     let _: () = redis_pipe
         .query_async(&mut redis_con)
@@ -126,12 +129,9 @@ async fn registration(
         hash_password(&payload.password)?.into(),
     );
 
-    let user: users::Model = user.insert(&state.conn).await.map_err(GlobalError::DbErr)?;
+    user.insert(&state.conn).await.map_err(GlobalError::DbErr)?;
 
-    generate_tokens(
-        user.id.to_string(),
-        user.first_name,
-        user.last_name,
-        user.roles,
-    )
+    Ok(Json(CustomMessage {
+        message: "Пользователь успешно создан".to_string(),
+    }))
 }

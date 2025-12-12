@@ -9,32 +9,24 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(PasswordReset::Table)
+                    .table(VerificationCode::Table)
                     .if_not_exists()
                     .col(
-                        ColumnDef::new(PasswordReset::Id)
+                        ColumnDef::new(VerificationCode::Id)
                             .uuid()
                             .not_null()
                             .primary_key()
-                            .default(Expr::cust("gen_random_uuid()")) 
+                            .default(Expr::cust("gen_random_uuid()")),
                     )
+                    .col(ColumnDef::new(VerificationCode::Code).string().not_null())
+                    .col(ColumnDef::new(VerificationCode::Email).string().not_null())
                     .col(
-                        ColumnDef::new(PasswordReset::Code)
-                            .string()
-                            .not_null()
-                    )
-                    .col(
-                        ColumnDef::new(PasswordReset::Email)
-                            .string()
-                            .not_null()
-                    )
-                    .col(
-                        ColumnDef::new(PasswordReset::ExpiryDate)
+                        ColumnDef::new(VerificationCode::ExpiryDate)
                             .timestamp_with_time_zone()
                             .not_null(),
                     )
                     .col(
-                        ColumnDef::new(PasswordReset::WrongTries)
+                        ColumnDef::new(VerificationCode::WrongTries)
                             .small_unsigned()
                             .not_null()
                             .default(0),
@@ -45,7 +37,7 @@ impl MigrationTrait for Migration {
     }
 }
 #[derive(Iden)]
-pub enum PasswordReset {
+pub enum VerificationCode {
     Table,
     Id,
     ExpiryDate,

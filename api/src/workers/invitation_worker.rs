@@ -2,7 +2,7 @@ use redis::{
     AsyncCommands, RedisError,
     streams::{StreamReadOptions, StreamReadReply},
 };
-use std::{env, time::Duration};
+use std::time::Duration;
 use tokio::time::sleep;
 
 use crate::utils::smtp::send_invitation;
@@ -25,8 +25,6 @@ pub async fn invitation_worker(redis_client: redis::Client) {
     let options = StreamReadOptions::default()
         .group(GROUP_NAME, CONSUMER_NAME)
         .count(10);
-
-    let client_url = env::var("CLIENT_URL").unwrap();
 
     loop {
         let results: [Result<StreamReadReply, RedisError>; 2] = [
@@ -60,9 +58,9 @@ pub async fn invitation_worker(redis_client: redis::Client) {
                                 }
                             }
                         }
-                        let result = send_invitation(
-                            id, client_url.clone(), sender_first_name, sender_last_name, receiver
-                        ).await;
+                        let result =
+                            send_invitation(id, sender_first_name, sender_last_name, receiver)
+                                .await;
 
                         if let Err(e) = result {
                             tracing::error!("Ошибка отправки {}", e);

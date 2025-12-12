@@ -1,9 +1,12 @@
-use crate::{handlers::main_router, utils::auth::create_admin, workers::invitation_worker};
+use crate::{
+    config::GLOBAL_CONFIG, handlers::main_router, utils::auth::create_admin,
+    workers::invitation_worker,
+};
 use axum::Router;
 use migration::{Migrator, MigratorTrait};
 use sea_orm::{Database, DatabaseConnection};
-use std::env;
 
+mod config;
 mod error;
 mod handlers;
 mod models;
@@ -17,17 +20,12 @@ pub async fn start() -> anyhow::Result<()> {
         .init();
 
     dotenvy::dotenv().ok();
-    let db_url = env::var("DATABASE_URL")?;
-    let port = env::var("PORT")?;
-    let redis_url = env::var("REDIS_URL")?;
-    let admin_username = env::var("ADMIN_USERNAME")?;
-    let admin_password = env::var("ADMIN_PASSWORD")?;
 
-    let conn = Database::connect(db_url).await?;
+    let conn = Database::connect(GLOBAL_CONFIG.db_url.to_owned()).await?;
     Migrator::up(&conn, None).await?;
-    create_admin(conn.clone(), admin_username, admin_password).await.unwrap();
-    
-    let redis_client = redis::Client::open(redis_url)?;
+    create_admin(conn.clone()).await.unwrap();
+
+    let redis_client = redis::Client::open(GLOBAL_CONFIG.redis_url.to_owned())?;
 
     let state = AppState { conn, redis_client };
 
@@ -38,7 +36,7 @@ pub async fn start() -> anyhow::Result<()> {
 
     let app = Router::new().nest("/api", main_router()).with_state(state);
 
-    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", GLOBAL_CONFIG.port)).await?;
     tracing::debug!("listening on {}", listener.local_addr()?);
     axum::serve(listener, app).await?;
 

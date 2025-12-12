@@ -1,3 +1,4 @@
+use crate::{config::GLOBAL_CONFIG, error::GlobalError};
 use argon2::{
     Argon2,
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
@@ -8,28 +9,25 @@ use axum_extra::extract::{
     cookie::{Cookie, SameSite},
 };
 use chrono::{Duration, Utc};
-use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
-use sea_orm::{ActiveValue::Set, DbConn, ActiveModelTrait};
-use serde::{Deserialize, Serialize};
-use std::sync::LazyLock;
 use entity::users;
 use entity::users::Entity as User;
-use crate::error::GlobalError;
+use jsonwebtoken::{Header, Validation, decode, encode};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, DbConn};
+use serde::{Deserialize, Serialize};
 
-pub async fn create_admin(db:DbConn, username: String, password: String) -> Result<(), GlobalError> {
-    let user: Option<users::Model> = User::find_by_email(username.clone())
+pub async fn create_admin(db: DbConn) -> Result<(), GlobalError> {
+    let user: Option<users::Model> = User::find_by_email(GLOBAL_CONFIG.admin_username.clone())
         .one(&db)
         .await
         .map_err(GlobalError::DbErr)?;
 
     if let None = user {
-        
         let user = users::ActiveModel {
             first_name: Set("Живая".to_owned()),
             last_name: Set("Легенда".to_owned()),
             roles: Set(vec!["ADMIN".to_owned(), "INITIATOR".to_owned()]),
-            email: Set(username),
-            password: Set(hash_password(&password)?),
+            email: Set(GLOBAL_CONFIG.admin_username.clone()),
+            password: Set(hash_password(&GLOBAL_CONFIG.admin_password)?),
             ..Default::default()
         };
 
@@ -37,26 +35,6 @@ pub async fn create_admin(db:DbConn, username: String, password: String) -> Resu
     }
 
     Ok(())
-}
-
-
-
-pub static KEYS: LazyLock<Keys> = LazyLock::new(|| {
-    let secret = std::env::var("JWT_SECRET").expect("JWT_SECRET must be set");
-    Keys::new(secret.as_bytes())
-});
-
-pub struct Keys {
-    pub encoding: EncodingKey,
-    pub decoding: DecodingKey,
-}
-impl Keys {
-    fn new(secret: &[u8]) -> Self {
-        Self {
-            encoding: EncodingKey::from_secret(secret),
-            decoding: DecodingKey::from_secret(secret),
-        }
-    }
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
@@ -68,6 +46,7 @@ pub enum TokenType {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Claims {
     pub sub: String,
+    pub email: String,
     pub first_name: String,
     pub last_name: String,
     pub exp: usize,
@@ -91,8 +70,12 @@ where
             .value()
             .to_string();
 
-        let token_data = decode::<Claims>(&access_token, &KEYS.decoding, &Validation::default())
-            .map_err(|_| GlobalError::InvalidToken)?;
+        let token_data = decode::<Claims>(
+            &access_token,
+            &GLOBAL_CONFIG.decoding_key,
+            &Validation::default(),
+        )
+        .map_err(|_| GlobalError::InvalidToken)?;
 
         if token_data.claims.token_type != TokenType::Access {
             return Err(GlobalError::InvalidToken);
@@ -104,6 +87,7 @@ where
 
 pub fn generate_tokens(
     sub: String,
+    email: String,
     first_name: String,
     last_name: String,
     roles: Vec<String>,
@@ -114,6 +98,7 @@ pub fn generate_tokens(
 
     let claims = Claims {
         sub: sub.clone(),
+        email: email.clone(),
         first_name: first_name.clone(),
         last_name: last_name.clone(),
         iat,
@@ -122,13 +107,14 @@ pub fn generate_tokens(
         roles: roles.clone(),
     };
 
-    let access_token = encode(&Header::default(), &claims, &KEYS.encoding)
+    let access_token = encode(&Header::default(), &claims, &GLOBAL_CONFIG.encoding_key)
         .map_err(|_| GlobalError::TokenCreation)?;
 
     let exp = (now + Duration::days(7)).timestamp() as usize;
 
     let claims = Claims {
         sub,
+        email,
         first_name,
         last_name,
         iat,
@@ -137,7 +123,7 @@ pub fn generate_tokens(
         roles,
     };
 
-    let refresh_token = encode(&Header::default(), &claims, &KEYS.encoding)
+    let refresh_token = encode(&Header::default(), &claims, &GLOBAL_CONFIG.encoding_key)
         .map_err(|_| GlobalError::TokenCreation)?;
 
     let access_cookie = Cookie::build(("access_token", access_token))

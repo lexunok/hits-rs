@@ -50,7 +50,9 @@ cargo run -p migration -- fresh
 -Вход переносим на фронт.
 -Пути теперь почти все новые, ну как минимум без /v1
 -Модель приглашений теперь поле emails а не email а путь на отправку /invitations.
+-При 401 обработке на фронте токен должен обновляться /refresh
 -Не помню как было но регистрация сразу генерит токены, а study group и telephone опциональны, также возможно для фронта требуется продление срока приглашения и получение приглашения при заходе на страницу но это не точно
 -Not Found на фронт переносим
--Таблица password_change теперь password_reset
--Таблица invitation и password_change поле date_expired на expiry_date
+-Таблица invitation и password_change и email_change поле date_expired на expiry_date
+-Таблица password_change объедениена с email_change и теперь verification_code
+-Обновление почты теперь требует передачи id модельки verification_code из прошлого шага

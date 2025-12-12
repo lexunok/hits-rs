@@ -1,7 +1,6 @@
-use std::fmt;
-
 use sea_orm::prelude::Uuid;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 #[serde(rename_all = "UPPERCASE")]
@@ -55,4 +54,9 @@ pub struct PasswordResetPayload {
     pub id: Uuid,
     pub code: String,
     pub password: String,
+}
+#[derive(Debug, Deserialize)]
+pub struct EmailResetPayload {
+    pub id: Uuid,
+    pub code: String,
 }

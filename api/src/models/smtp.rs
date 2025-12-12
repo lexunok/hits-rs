@@ -5,7 +5,7 @@ pub struct CodeEmailContext {
     pub email: String,
     pub code: String,
     pub subject: String,
-    pub text: String
+    pub text: String,
 }
 #[derive(Debug, Serialize)]
 pub struct Notification {
