@@ -1,8 +1,8 @@
 use crate::{
     AppState,
     error::GlobalError,
-    models::{auth::{InvitationResponse, LoginPayload, RegisterPayload}, common::{IdResponse, ParamsId}},
-    utils::auth::{Claims, KEYS, TokenType, generate_tokens, hash_password, verify_password},
+    models::{auth::{InvitationResponse, LoginPayload, PasswordResetPayload, RegisterPayload}, common::{CustomMessage, IdResponse, ParamsId}},
+    utils::{auth::{Claims, KEYS, TokenType, generate_tokens, hash_password, verify_password}, smtp::send_code_to_reset_password},
 };
 use argon2::password_hash::rand_core::{OsRng, RngCore};
 use axum::{Json, Router, extract::{Path, Query, State}, response::IntoResponse, routing::{get, post}};
@@ -31,7 +31,7 @@ async fn get_invitation(
     Path(id): Path<Uuid>
 ) -> Result<impl IntoResponse, GlobalError> {
     let mut invitation: invitation::ActiveModel = Invitation::find_by_id(id)
-        .filter(invitation::Column::DateExpired.gt(Local::now()))
+        .filter(invitation::Column::ExpiryDate.gt(Local::now()))
         .one(&state.conn)
         .await
         .map_err(GlobalError::DbErr)?
@@ -39,7 +39,7 @@ async fn get_invitation(
         .into_active_model();
 
     invitation.set(
-        invitation::Column::DateExpired,
+        invitation::Column::ExpiryDate,
         (Local::now() + Duration::hours(3)).into(),
     );
 
@@ -82,7 +82,7 @@ async fn registration(
     let txn = state.conn.begin().await.map_err(GlobalError::DbErr)?;
 
     let invitation: invitation::Model = Invitation::find_by_id(params.id)
-        .filter(invitation::Column::DateExpired.gt(Local::now()))
+        .filter(invitation::Column::ExpiryDate.gt(Local::now()))
         .one(&txn)
         .await
         .map_err(GlobalError::DbErr)?
@@ -109,7 +109,7 @@ async fn registration(
     let mut invitation: invitation::ActiveModel = invitation.into();
 
     invitation.set(
-        invitation::Column::DateExpired,
+        invitation::Column::ExpiryDate,
         Local::now().into(),
     );
 
@@ -165,25 +165,25 @@ async fn recovery_password(
 
     PasswordReset::update_many()
         .col_expr(
-            password_reset::Column::DateExpired, 
+            password_reset::Column::ExpiryDate, 
             Expr::value(Local::now().naive_local())
         )
-        .filter(password_reset::Column::Email.eq(email.clone()))
-        .filter(password_reset::Column::DateExpired.gt(Local::now()))
+        .filter(password_reset::Column::Email.eq(email.to_lowercase().clone()))
+        .filter(password_reset::Column::ExpiryDate.gt(Local::now()))
         .exec(&txn)
         .await
         .map_err(GlobalError::DbErr)?;
 
     let password_reset = password_reset::ActiveModel {
-            email: Set(email),
-            code: Set(code),
-            date_expired: Set((Local::now() + Duration::minutes(10)).into()),
+            email: Set(email.to_lowercase()),
+            code: Set(hash_password(&code)?),
+            expiry_date: Set((Local::now() + Duration::minutes(10)).into()),
             ..Default::default()
     };
 
     let password_reset: password_reset::Model = password_reset.insert(&txn).await.map_err(GlobalError::DbErr)?;
-
-    //Отправляем на почту
+    
+    send_code_to_reset_password(code, email).await.map_err(|e| GlobalError::Custom(e.to_string()))?;
 
     txn.commit().await.map_err(GlobalError::DbErr)?;
 
@@ -192,26 +192,66 @@ async fn recovery_password(
 
 async fn new_password(
     State(state): State<AppState>,
-    Path(id): Path<Uuid>
+    Json(payload): Json<PasswordResetPayload>,
 ) -> Result<impl IntoResponse, GlobalError> {
-    let mut invitation: invitation::ActiveModel = Invitation::find_by_id(id)
-        .filter(invitation::Column::DateExpired.gt(Local::now()))
+    let password_reset: password_reset::Model = PasswordReset::find_by_id(payload.id)
         .one(&state.conn)
         .await
         .map_err(GlobalError::DbErr)?
-        .ok_or(GlobalError::NotFound)?
-        .into_active_model();
+        .ok_or(GlobalError::NotFound)?;
 
         
-    invitation.set(
-        invitation::Column::DateExpired,
-        (Local::now() + Duration::hours(3)).into(),
-    );
+    if Local::now() > password_reset.expiry_date {
+        return Err(GlobalError::Custom("Время запроса истекло".to_string()));
+    }
+    if password_reset.wrong_tries >= 3 {
+        return Err(GlobalError::Custom("Превышено максимальное количество попыток".to_string()));
+    }
 
-    let invitation: invitation::Model = invitation.update(&state.conn).await.map_err(GlobalError::DbErr)?;
+    if verify_password(&password_reset.code, &payload.code) {
+        let txn = state.conn.begin().await.map_err(GlobalError::DbErr)?;
 
-    Ok(Json(InvitationResponse{
-        email: invitation.email,
-        code: invitation.id
+        let mut user: users::ActiveModel = User::find_by_email(password_reset.email.to_lowercase().clone())
+            .one(&txn)
+            .await
+            .map_err(GlobalError::DbErr)?
+            .ok_or(GlobalError::NotFound)?
+            .into_active_model();
+
+        user.set(
+            users::Column::Password,
+            hash_password(&payload.password)?.into(),
+        );
+        
+        user.update(&txn).await.map_err(GlobalError::DbErr)?;
+
+        PasswordReset::update_many()
+            .col_expr(
+                password_reset::Column::ExpiryDate, 
+                Expr::value(Local::now().naive_local())
+            )
+            .filter(password_reset::Column::Email.eq(password_reset.email.to_lowercase()))
+            .filter(password_reset::Column::ExpiryDate.gt(Local::now()))
+            .exec(&txn)
+            .await
+            .map_err(GlobalError::DbErr)?;
+
+        txn.commit().await.map_err(GlobalError::DbErr)?;
+    } else {
+        let wrong_tries = password_reset.wrong_tries + 1;
+        let mut password_reset = password_reset.into_active_model();
+        
+        password_reset.set(
+            password_reset::Column::WrongTries,
+            wrong_tries.into(),
+        );
+        
+        password_reset.update(&state.conn).await.map_err(GlobalError::DbErr)?;
+
+        return Err(GlobalError::Custom("Ошибка, попробуйте еще раз".to_string()));
+    }
+
+    Ok(Json(CustomMessage{
+        message: "Успешное обновление пароля".to_string()
     }))
 }

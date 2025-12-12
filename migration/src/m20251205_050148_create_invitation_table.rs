@@ -29,7 +29,7 @@ impl MigrationTrait for Migration {
                             .not_null()
                     )
                     .col(
-                        ColumnDef::new(Invitation::DateExpired)
+                        ColumnDef::new(Invitation::ExpiryDate)
                             .timestamp_with_time_zone()
                             .not_null()
                             .default(Expr::cust("CURRENT_TIMESTAMP + INTERVAL '1 day'")),
@@ -43,7 +43,7 @@ impl MigrationTrait for Migration {
 pub enum Invitation {
     Table,
     Id,
-    DateExpired,
+    ExpiryDate,
     Roles,
     Email,
 }

@@ -53,3 +53,4 @@ cargo run -p migration -- fresh
 -Не помню как было но регистрация сразу генерит токены, а study group и telephone опциональны, также возможно для фронта требуется продление срока приглашения и получение приглашения при заходе на страницу но это не точно
 -Not Found на фронт переносим
 -Таблица password_change теперь password_reset
+-Таблица invitation и password_change поле date_expired на expiry_date

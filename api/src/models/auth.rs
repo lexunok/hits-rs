@@ -50,3 +50,9 @@ pub struct InvitationResponse {
     pub email: String,
     pub code: Uuid,
 }
+#[derive(Debug, Deserialize)]
+pub struct PasswordResetPayload {
+    pub id: Uuid,
+    pub code: String,
+    pub password: String,
+}

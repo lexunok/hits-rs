@@ -12,7 +12,7 @@ pub struct Model {
     pub roles: Vec<String>,
     #[sea_orm(unique)]
     pub email: String,
-    pub date_expired: DateTimeWithTimeZone,
+    pub expiry_date: DateTimeWithTimeZone,
 }
 
 impl ActiveModelBehavior for ActiveModel {}

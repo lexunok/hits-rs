@@ -29,7 +29,7 @@ impl MigrationTrait for Migration {
                             .not_null()
                     )
                     .col(
-                        ColumnDef::new(PasswordReset::DateExpired)
+                        ColumnDef::new(PasswordReset::ExpiryDate)
                             .timestamp_with_time_zone()
                             .not_null(),
                     )
@@ -48,7 +48,7 @@ impl MigrationTrait for Migration {
 pub enum PasswordReset {
     Table,
     Id,
-    DateExpired,
+    ExpiryDate,
     Code,
     WrongTries,
     Email,

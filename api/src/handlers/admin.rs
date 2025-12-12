@@ -11,9 +11,8 @@ use entity::invitation::Entity as Invitation;
 use entity::users::Entity as User;
 use entity::{invitation, users};
 use macros::has_role;
-use redis::AsyncTypedCommands;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter, QuerySelect, TransactionTrait
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter, QuerySelect
 };
 use serde_json::json;
 
@@ -55,7 +54,7 @@ async fn send_invitations(
         .select_only()
         .column(invitation::Column::Email)
         .filter(invitation::Column::Email.is_in(payload.emails.clone()))
-        .filter(invitation::Column::DateExpired.gt(Local::now()))
+        .filter(invitation::Column::ExpiryDate.gt(Local::now()))
         .into_tuple()
         .all(&state.conn)
         .await
@@ -81,21 +80,14 @@ async fn send_invitations(
         ..Default::default()
     });
 
-    let txn = state.conn.begin().await.map_err(GlobalError::DbErr)?;
-
-    Invitation::insert_many(invitation_models)
-        .exec(&txn)
+    let inserted_invitations = Invitation::insert_many(invitation_models)
+        .exec_with_returning(&state.conn)
         .await
         .map_err(GlobalError::DbErr)?;
 
-    let inserted_invitations = Invitation::find()
-        .filter(invitation::Column::Email.is_in(new_emails.clone()))
-        .all(&txn)
-        .await
-        .map_err(GlobalError::DbErr)?;
-
+    let mut redis_pipe = redis::pipe();
     for invitation in &inserted_invitations {
-        let _ = redis_con
+        redis_pipe
             .xadd(
                 INVITATIONS_STREAM_NAME,
                 "*",
@@ -105,11 +97,12 @@ async fn send_invitations(
                     ("sender_first_name", &claims.first_name),
                     ("sender_last_name", &claims.last_name),
                 ],
-            )
-            .await
-            .map_err(GlobalError::RedisErr)?;
+            );
     }
-    txn.commit().await.map_err(GlobalError::DbErr)?;
+    let _: () = redis_pipe
+        .query_async(&mut redis_con)
+        .await
+        .map_err(GlobalError::RedisErr)?;
 
     Ok(Json(CustomMessage {
         message: format!(

@@ -11,7 +11,7 @@ pub struct Model {
     pub id: Uuid,
     pub code: String,
     pub email: String,
-    pub date_expired: DateTimeWithTimeZone,
+    pub expiry_date: DateTimeWithTimeZone,
     pub wrong_tries: i16,
 }
 

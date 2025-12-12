@@ -83,13 +83,13 @@
                   <p>{{ notification.message }}</p>
                 {% endif %}
 
-                {% if notification.link and notification.buttonName %}
+                {% if notification.link and notification.button_name %}
                   <div class="notification__link-wrapper">
                       <a
                         class="notification__link"
                         href="{{ notification.link }}"
                       >
-                        {{ notification.buttonName }}
+                        {{ notification.button_name }}
                       </a>
                   </div>
                 {% endif %}
