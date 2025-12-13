@@ -4,54 +4,80 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use serde_json::json;
+use thiserror::Error;
 
-#[derive(Debug)]
-pub enum GlobalError {
+#[derive(Debug, Error)]
+pub enum AppError {
+    #[error("Wrong credentials")]
     WrongCredentials,
+
+    #[error("Token creation error")]
     TokenCreation,
+
+    #[error("Invalid token")]
     InvalidToken,
+
+    #[error("Not Found")]
     NotFound,
+
+    #[error("Bad Request")]
     BadRequest,
-    InternalServerError,
-    DbErr(sea_orm::DbErr),
-    RedisErr(redis::RedisError),
+
+    #[error("Forbidden")]
     Forbidden,
+
+    #[error("{0}")]
     Custom(String),
+
+    #[error("Internal Server Error")]
+    InternalServerError,
+
+    #[error("Database error")]
+    DbErr(
+        #[from]
+        #[source]
+        sea_orm::DbErr,
+    ),
+
+    #[error("An error occurred with Redis")]
+    RedisErr(
+        #[from]
+        #[source]
+        redis::RedisError,
+    ),
 }
-impl IntoResponse for GlobalError {
+
+impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, error_message) = match self {
-            GlobalError::WrongCredentials => {
-                (StatusCode::UNAUTHORIZED, "Wrong credentials".to_string())
+        let (status, error_message) = match &self {
+            AppError::WrongCredentials | AppError::InvalidToken => {
+                (StatusCode::UNAUTHORIZED, self.to_string())
             }
-            GlobalError::TokenCreation => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Token creation error".to_string(),
-            ),
-            GlobalError::InvalidToken => (StatusCode::BAD_REQUEST, "Invalid token".to_string()),
-            GlobalError::NotFound => (StatusCode::NOT_FOUND, "Not Found".to_string()),
-            GlobalError::BadRequest => (StatusCode::BAD_REQUEST, "Bad Request".to_string()),
-            GlobalError::InternalServerError => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Invalid Server Error".to_string(),
-            ),
-            GlobalError::DbErr(e) => {
-                tracing::error!("Database error: {}", e);
+            AppError::TokenCreation | AppError::InternalServerError => {
+                (StatusCode::INTERNAL_SERVER_ERROR, self.to_string())
+            }
+            AppError::NotFound => (StatusCode::NOT_FOUND, self.to_string()),
+            AppError::BadRequest => (StatusCode::BAD_REQUEST, self.to_string()),
+            AppError::Forbidden => (StatusCode::FORBIDDEN, self.to_string()),
+            AppError::Custom(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
+
+            AppError::DbErr(e) => {
+                tracing::error!("Database source error: {:?}", e);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    "Database error".to_string(),
+                    "A database error occurred".to_string(),
                 )
             }
-            GlobalError::RedisErr(e) => {
-                tracing::error!("Redis error: {}", e);
-                (StatusCode::INTERNAL_SERVER_ERROR, "Redis error".to_string())
+            AppError::RedisErr(e) => {
+                tracing::error!("Redis source error: {:?}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "An internal service error occurred".to_string(),
+                )
             }
-            GlobalError::Forbidden => (StatusCode::FORBIDDEN, "Forbidden".to_string()),
-            GlobalError::Custom(s) => (StatusCode::BAD_REQUEST, s),
         };
-        let body = Json(json!({
-            "error": error_message,
-        }));
+
+        let body = Json(json!({ "error": error_message }));
         (status, body).into_response()
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
     AppState,
-    error::GlobalError,
+    error::AppError,
     models::{
         admin::{InvitationPayload, RegisterPayload},
         common::CustomMessage,
@@ -31,12 +31,11 @@ async fn send_invitations(
     State(state): State<AppState>,
     claims: Claims,
     Json(payload): Json<InvitationPayload>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, AppError> {
     let mut redis_con = state
         .redis_client
         .get_multiplexed_async_connection()
-        .await
-        .map_err(GlobalError::RedisErr)?;
+        .await?;
 
     let existing_users: Vec<String> = User::find()
         .select_only()
@@ -44,11 +43,10 @@ async fn send_invitations(
         .filter(users::Column::Email.is_in(payload.emails.clone()))
         .into_tuple()
         .all(&state.conn)
-        .await
-        .map_err(GlobalError::DbErr)?;
+        .await?;
 
     if !existing_users.is_empty() {
-        return Err(GlobalError::Custom(format!(
+        return Err(AppError::Custom(format!(
             "Следующие email уже зарегистрированы: {}",
             existing_users.join(", ")
         )));
@@ -61,8 +59,7 @@ async fn send_invitations(
         .filter(invitation::Column::ExpiryDate.gt(Local::now()))
         .into_tuple()
         .all(&state.conn)
-        .await
-        .map_err(GlobalError::DbErr)?
+        .await?
         .into_iter()
         .collect();
 
@@ -86,8 +83,7 @@ async fn send_invitations(
 
     let inserted_invitations = Invitation::insert_many(invitation_models)
         .exec_with_returning(&state.conn)
-        .await
-        .map_err(GlobalError::DbErr)?;
+        .await?;
 
     let mut redis_pipe = redis::pipe();
     for invitation in &inserted_invitations {
@@ -102,10 +98,7 @@ async fn send_invitations(
             ],
         );
     }
-    let _: () = redis_pipe
-        .query_async(&mut redis_con)
-        .await
-        .map_err(GlobalError::RedisErr)?;
+    let _: () = redis_pipe.query_async(&mut redis_con).await?;
 
     Ok(Json(CustomMessage {
         message: format!(
@@ -120,16 +113,16 @@ async fn registration(
     State(state): State<AppState>,
     claims: Claims,
     Json(payload): Json<RegisterPayload>,
-) -> Result<impl IntoResponse, GlobalError> {
+) -> Result<impl IntoResponse, AppError> {
     let mut user =
-        users::ActiveModel::from_json(json!(payload)).map_err(|_| GlobalError::BadRequest)?;
+        users::ActiveModel::from_json(json!(payload)).map_err(|_| AppError::BadRequest)?;
 
     user.set(
         users::Column::Password,
         hash_password(&payload.password)?.into(),
     );
 
-    user.insert(&state.conn).await.map_err(GlobalError::DbErr)?;
+    user.insert(&state.conn).await?;
 
     Ok(Json(CustomMessage {
         message: "Пользователь успешно создан".to_string(),

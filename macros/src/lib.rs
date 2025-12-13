@@ -49,8 +49,8 @@ pub fn has_role(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let check_code = quote! {
-        if !#claims_ident.roles.contains(&crate::models::auth::Role::#required_role.to_string()) {
-            return Err(crate::error::GlobalError::Forbidden);
+        if !#claims_ident.roles.contains(&entity::role::Role::#required_role) {
+            return Err(crate::error::AppError::Forbidden);
         }
     };
 
@@ -74,13 +74,13 @@ pub fn has_any_role(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let roles_check = required_roles.iter().map(|role| {
-        quote! { #claims_ident.roles.contains(&crate::models::auth::Role::#role.to_string()) }
+        quote! { #claims_ident.roles.contains(&entity::role::Role::#role) }
     });
 
     let check_code = quote! {
         let has_any_role = #(#roles_check)||*;
         if !has_any_role {
-            return Err(crate::error::GlobalError::Forbidden);
+            return Err(crate::error::AppError::Forbidden);
         }
     };
 
@@ -104,13 +104,13 @@ pub fn has_all_roles(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let roles_check = required_roles.iter().map(|role| {
-        quote! { #claims_ident.roles.contains(&crate::models::auth::Role::#role.to_string()) }
+        quote! { #claims_ident.roles.contains(&entity::role::Role::#role) }
     });
 
     let check_code = quote! {
         let has_all_roles = #(#roles_check)&&*;
         if !has_all_roles {
-            return Err(crate::error::GlobalError::Forbidden);
+            return Err(crate::error::AppError::Forbidden);
         }
     };
 

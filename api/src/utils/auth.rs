@@ -1,4 +1,4 @@
-use crate::{config::GLOBAL_CONFIG, error::GlobalError};
+use crate::{config::GLOBAL_CONFIG, error::AppError};
 use argon2::{
     Argon2,
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
@@ -9,29 +9,30 @@ use axum_extra::extract::{
     cookie::{Cookie, SameSite},
 };
 use chrono::{Duration, Utc};
-use entity::users;
-use entity::users::Entity as User;
+use entity::{
+    role::Role,
+    users::{self, Entity as User},
+};
 use jsonwebtoken::{Header, Validation, decode, encode};
 use sea_orm::{ActiveModelTrait, ActiveValue::Set, DbConn};
 use serde::{Deserialize, Serialize};
 
-pub async fn create_admin(db: DbConn) -> Result<(), GlobalError> {
+pub async fn create_admin(db: DbConn) -> Result<(), AppError> {
     let user: Option<users::Model> = User::find_by_email(GLOBAL_CONFIG.admin_username.clone())
         .one(&db)
-        .await
-        .map_err(GlobalError::DbErr)?;
+        .await?;
 
     if let None = user {
         let user = users::ActiveModel {
             first_name: Set("Живая".to_owned()),
             last_name: Set("Легенда".to_owned()),
-            roles: Set(vec!["ADMIN".to_owned(), "INITIATOR".to_owned()]),
+            roles: Set(vec![Role::Admin, Role::Initiator]),
             email: Set(GLOBAL_CONFIG.admin_username.clone()),
             password: Set(hash_password(&GLOBAL_CONFIG.admin_password)?),
             ..Default::default()
         };
 
-        user.insert(&db).await.map_err(GlobalError::DbErr)?;
+        user.insert(&db).await?;
     }
 
     Ok(())
@@ -52,21 +53,21 @@ pub struct Claims {
     pub exp: usize,
     pub iat: usize,
     pub token_type: TokenType,
-    pub roles: Vec<String>,
+    pub roles: Vec<Role>,
 }
 
 impl<S> FromRequestParts<S> for Claims
 where
     S: Send + Sync,
 {
-    type Rejection = GlobalError;
+    type Rejection = AppError;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         let jar = CookieJar::from_headers(&parts.headers);
 
         let access_token = jar
             .get("access_token")
-            .ok_or(GlobalError::WrongCredentials)?
+            .ok_or(AppError::WrongCredentials)?
             .value()
             .to_string();
 
@@ -75,10 +76,10 @@ where
             &GLOBAL_CONFIG.decoding_key,
             &Validation::default(),
         )
-        .map_err(|_| GlobalError::InvalidToken)?;
+        .map_err(|_| AppError::InvalidToken)?;
 
         if token_data.claims.token_type != TokenType::Access {
-            return Err(GlobalError::InvalidToken);
+            return Err(AppError::InvalidToken);
         }
 
         Ok(token_data.claims)
@@ -90,8 +91,8 @@ pub fn generate_tokens(
     email: String,
     first_name: String,
     last_name: String,
-    roles: Vec<String>,
-) -> Result<CookieJar, GlobalError> {
+    roles: Vec<Role>,
+) -> Result<CookieJar, AppError> {
     let now = Utc::now();
     let iat = now.timestamp() as usize;
     let exp = (now + Duration::minutes(15)).timestamp() as usize;
@@ -108,7 +109,7 @@ pub fn generate_tokens(
     };
 
     let access_token = encode(&Header::default(), &claims, &GLOBAL_CONFIG.encoding_key)
-        .map_err(|_| GlobalError::TokenCreation)?;
+        .map_err(|_| AppError::TokenCreation)?;
 
     let exp = (now + Duration::days(7)).timestamp() as usize;
 
@@ -124,7 +125,7 @@ pub fn generate_tokens(
     };
 
     let refresh_token = encode(&Header::default(), &claims, &GLOBAL_CONFIG.encoding_key)
-        .map_err(|_| GlobalError::TokenCreation)?;
+        .map_err(|_| AppError::TokenCreation)?;
 
     let access_cookie = Cookie::build(("access_token", access_token))
         .path("/")
@@ -143,13 +144,13 @@ pub fn generate_tokens(
     Ok(CookieJar::new().add(access_cookie).add(refresh_cookie))
 }
 
-pub fn hash_password(password: &str) -> Result<String, GlobalError> {
+pub fn hash_password(password: &str) -> Result<String, AppError> {
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
 
     let password_hash = argon2
         .hash_password(password.as_bytes(), &salt)
-        .map_err(|_| GlobalError::InternalServerError)?;
+        .map_err(|_| AppError::InternalServerError)?;
     Ok(password_hash.to_string())
 }
 pub fn verify_password(hash: &str, password: &str) -> bool {

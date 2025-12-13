@@ -1,4 +1,4 @@
-use crate::models::auth::Role;
+use entity::role::Role;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]

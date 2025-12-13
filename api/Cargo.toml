@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+entity = { path = "../entity" }
+migration = { path = "../migration" }
+macros = { path = "../macros" }
 axum = { version = "0.8.7", features = ["macros"] }
 axum-extra = { version = "0.12.2", features = ["cookie"] }
 serde = { version = "1.0.228", features = ["derive"] }
@@ -20,18 +23,15 @@ time = "0.3.44"
 lettre = { version = "0.11.19", features = ["tokio1-native-tls"] }
 redis = { version = "1.0.0", features = ["tokio-native-tls-comp"] }
 tera = "1.20.1"
-entity = { path = "../entity" }
-
-migration = { path = "../migration" }
-macros = { path = "../macros" }
+thiserror = "2.0.17"
 
 [dependencies.sea-orm]
 version = "2.0.0-rc.20"
-features = [ 
-    "sqlx-postgres", 
-    "runtime-tokio-native-tls", 
-    "debug-print", 
-    "macros", 
-    "with-chrono", 
+features = [
+    "sqlx-postgres",
+    "runtime-tokio-native-tls",
+    "debug-print",
+    "macros",
+    "with-chrono",
     "with-uuid"
 ]
