@@ -2,16 +2,15 @@ use crate::{
     AppState,
     dtos::{
         auth::EmailResetPayload,
-        common::{CustomMessage, IdResponse},
+        common::{ApiMessageResponse, IdResponse},
     },
     error::AppError,
     services::user::UserService,
     utils::security::Claims,
 };
 use axum::{
-    Json, Router,
+    Router,
     extract::{Path, State},
-    response::IntoResponse,
     routing::{post, put},
 };
 
@@ -28,22 +27,23 @@ async fn request_to_update_email(
     State(state): State<AppState>,
     _: Claims,
     Path(new_email): Path<String>,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<IdResponse, AppError> {
     let verification_id = UserService::request_email_change(&state, new_email).await?;
 
-    Ok(Json(IdResponse {
+    Ok(IdResponse {
         id: verification_id,
-    }))
+    })
 }
 
 async fn confirm_and_update_email(
     State(state): State<AppState>,
     claims: Claims,
-    Json(payload): Json<EmailResetPayload>,
-) -> Result<impl IntoResponse, AppError> {
-    UserService::confirm_email_change(&state, claims, payload).await?;
+    payload: axum::Json<EmailResetPayload>,
+) -> Result<ApiMessageResponse, AppError> {
+    UserService::confirm_email_change(&state, claims, payload.0).await?;
 
-    Ok(Json(CustomMessage {
+    Ok(ApiMessageResponse {
+        success: true,
         message: "Успешное обновление почты".to_string(),
-    }))
+    })
 }

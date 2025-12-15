@@ -2,7 +2,7 @@ use crate::{
     AppState,
     dtos::{
         auth::{InvitationResponse, LoginPayload, PasswordResetPayload, RegisterPayload},
-        common::{CustomMessage, IdResponse, ParamsId},
+        common::{ApiMessageResponse, IdResponse, ParamsId},
     },
     error::AppError,
     services::{auth::AuthService, invitation::InvitationService, user::UserService},
@@ -33,13 +33,13 @@ pub fn auth_router() -> Router<AppState> {
 async fn get_invitation(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<InvitationResponse, AppError> {
     let invitation = InvitationService::get_invitation(&state, id).await?;
 
-    Ok(Json(InvitationResponse {
+    Ok(InvitationResponse {
         email: invitation.email,
         code: invitation.id,
-    }))
+    })
 }
 
 async fn login(
@@ -88,21 +88,22 @@ pub async fn refresh(jar: CookieJar) -> Result<impl IntoResponse, AppError> {
 async fn request_to_update_password(
     State(state): State<AppState>,
     Path(email): Path<String>,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<IdResponse, AppError> {
     let verification_id = UserService::request_password_reset(&state, email).await?;
 
-    Ok(Json(IdResponse {
+    Ok(IdResponse {
         id: verification_id,
-    }))
+    })
 }
 
 async fn confirm_and_update_password(
     State(state): State<AppState>,
     Json(payload): Json<PasswordResetPayload>,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<ApiMessageResponse, AppError> {
     UserService::confirm_password_reset(&state, payload).await?;
 
-    Ok(Json(CustomMessage {
+    Ok(ApiMessageResponse {
+        success: true,
         message: "Успешное обновление пароля".to_string(),
-    }))
+    })
 }

@@ -2,7 +2,7 @@ use crate::{
     AppState,
     dtos::{
         admin::{InvitationPayload, RegisterPayload},
-        common::CustomMessage,
+        common::ApiMessageResponse,
     },
     error::AppError,
     services::{invitation::InvitationService, user::UserService},
@@ -22,21 +22,23 @@ async fn send_invitations(
     State(state): State<AppState>,
     claims: Claims,
     Json(payload): Json<InvitationPayload>,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<ApiMessageResponse, AppError> {
     let sent_count = InvitationService::send_invitations(&state, claims, payload).await?;
 
     if sent_count == 0 {
-        return Ok(Json(CustomMessage {
+        return Ok(ApiMessageResponse {
+            success: true,
             message: "Все приглашения по указанным email уже были отправлены ранее.".to_string(),
-        }));
+        });
     }
 
-    Ok(Json(CustomMessage {
+    Ok(ApiMessageResponse {
+        success: true,
         message: format!(
             "Новые приглашения успешно отправлены в кол-ве {}",
             sent_count
         ),
-    }))
+    })
 }
 
 #[has_role(Admin)]
@@ -47,7 +49,8 @@ async fn registration(
 ) -> Result<impl IntoResponse, AppError> {
     UserService::create_user_by_admin(&state, payload).await?;
 
-    Ok(Json(CustomMessage {
+    Ok(ApiMessageResponse {
+        success: true,
         message: "Пользователь успешно создан".to_string(),
-    }))
+    })
 }
