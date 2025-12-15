@@ -1,6 +1,6 @@
 use crate::{
     config::GLOBAL_CONFIG,
-    models::smtp::{CodeEmailContext, Notification},
+    dtos::smtp::{CodeEmailContext, Notification},
 };
 use anyhow::{Error, Ok};
 use lettre::{

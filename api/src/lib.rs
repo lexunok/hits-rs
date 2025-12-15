@@ -1,5 +1,5 @@
 use crate::{
-    config::GLOBAL_CONFIG, handlers::main_router, utils::auth::create_admin,
+    config::GLOBAL_CONFIG, handlers::main_router, utils::startup::create_admin,
     workers::invitation_worker,
 };
 use axum::Router;
@@ -7,9 +7,10 @@ use migration::{Migrator, MigratorTrait};
 use sea_orm::{Database, DatabaseConnection};
 
 mod config;
+mod dtos;
 mod error;
 mod handlers;
-mod models;
+mod services;
 mod utils;
 mod workers;
 

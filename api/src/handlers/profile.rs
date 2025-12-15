@@ -1,30 +1,18 @@
 use crate::{
     AppState,
-    error::AppError,
-    models::{
+    dtos::{
         auth::EmailResetPayload,
         common::{CustomMessage, IdResponse},
     },
-    utils::{
-        auth::{Claims, hash_password, verify_password},
-        smtp::send_code_to_update_email,
-    },
+    error::AppError,
+    services::user::UserService,
+    utils::security::Claims,
 };
-use argon2::password_hash::rand_core::{OsRng, RngCore};
 use axum::{
     Json, Router,
     extract::{Path, State},
     response::IntoResponse,
     routing::{post, put},
-};
-use chrono::{Duration, Local};
-use entity::{
-    users::{self, Entity as User},
-    verification_code::{self, Entity as VerificationCode},
-};
-use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter,
-    TransactionTrait, prelude::Expr,
 };
 
 pub fn profile_router() -> Router<AppState> {
@@ -41,39 +29,10 @@ async fn request_to_update_email(
     _: Claims,
     Path(new_email): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let mut rng = OsRng;
-    let random_u32 = rng.next_u32();
-    let code = (100_000 + (random_u32 % 900_000)).to_string();
-
-    let txn = state.conn.begin().await?;
-
-    VerificationCode::update_many()
-        .col_expr(
-            verification_code::Column::ExpiryDate,
-            Expr::value(Local::now().naive_local()),
-        )
-        .filter(verification_code::Column::Email.eq(new_email.to_lowercase().clone()))
-        .filter(verification_code::Column::ExpiryDate.gt(Local::now()))
-        .exec(&txn)
-        .await?;
-
-    let verification_code = verification_code::ActiveModel {
-        email: Set(new_email.to_lowercase()),
-        code: Set(hash_password(&code)?),
-        expiry_date: Set((Local::now() + Duration::minutes(10)).into()),
-        ..Default::default()
-    };
-
-    let verification_code: verification_code::Model = verification_code.insert(&txn).await?;
-
-    send_code_to_update_email(code, new_email)
-        .await
-        .map_err(|e| AppError::Custom(e.to_string()))?;
-
-    txn.commit().await?;
+    let verification_id = UserService::request_email_change(&state, new_email).await?;
 
     Ok(Json(IdResponse {
-        id: verification_code.id,
+        id: verification_id,
     }))
 }
 
@@ -82,57 +41,7 @@ async fn confirm_and_update_email(
     claims: Claims,
     Json(payload): Json<EmailResetPayload>,
 ) -> Result<impl IntoResponse, AppError> {
-    let verification_code: verification_code::Model = VerificationCode::find_by_id(payload.id)
-        .one(&state.conn)
-        .await?
-        .ok_or(AppError::NotFound)?;
-
-    if Local::now() > verification_code.expiry_date {
-        return Err(AppError::Custom("Время запроса истекло".to_string()));
-    }
-    if verification_code.wrong_tries >= 3 {
-        return Err(AppError::Custom(
-            "Превышено максимальное количество попыток".to_string(),
-        ));
-    }
-
-    if verify_password(&verification_code.code, &payload.code) {
-        let txn = state.conn.begin().await?;
-
-        let mut user: users::ActiveModel = User::find_by_email(claims.email)
-            .one(&txn)
-            .await?
-            .ok_or(AppError::NotFound)?
-            .into_active_model();
-
-        user.set(
-            users::Column::Email,
-            verification_code.email.to_lowercase().clone().into(),
-        );
-
-        user.update(&txn).await?;
-
-        VerificationCode::update_many()
-            .col_expr(
-                verification_code::Column::ExpiryDate,
-                Expr::value(Local::now().naive_local()),
-            )
-            .filter(verification_code::Column::Email.eq(verification_code.email.to_lowercase()))
-            .filter(verification_code::Column::ExpiryDate.gt(Local::now()))
-            .exec(&txn)
-            .await?;
-
-        txn.commit().await?;
-    } else {
-        let wrong_tries = verification_code.wrong_tries + 1;
-        let mut verification_code = verification_code.into_active_model();
-
-        verification_code.set(verification_code::Column::WrongTries, wrong_tries.into());
-
-        verification_code.update(&state.conn).await?;
-
-        return Err(AppError::Custom("Ошибка, попробуйте еще раз".to_string()));
-    }
+    UserService::confirm_email_change(&state, claims, payload).await?;
 
     Ok(Json(CustomMessage {
         message: "Успешное обновление почты".to_string(),
