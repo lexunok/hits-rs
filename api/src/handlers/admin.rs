@@ -2,13 +2,18 @@ use crate::{
     AppState,
     dtos::{
         admin::{InvitationPayload, RegisterPayload},
-        common::MessageResponse, profile::UserDto,
+        common::MessageResponse,
+        profile::UserDto,
     },
     error::AppError,
     services::{invitation::InvitationService, user::UserService},
     utils::security::Claims,
 };
-use axum::{Json, Router, extract::{Path, State}, routing::{delete, post, put}};
+use axum::{
+    Json, Router,
+    extract::{Path, State},
+    routing::{delete, post, put},
+};
 use macros::has_role;
 use sea_orm::prelude::Uuid;
 

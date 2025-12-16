@@ -1,8 +1,15 @@
 use crate::{
     AppState,
-    dtos::{admin::RegisterPayload, auth::{EmailResetPayload, PasswordResetPayload}, profile::{ProfileUpdatePayload, UserDto}}, 
+    dtos::{
+        admin::RegisterPayload,
+        auth::{EmailResetPayload, PasswordResetPayload},
+        profile::{ProfileUpdatePayload, UserDto},
+    },
     error::AppError,
-    utils::{security::{Claims, hash_password, verify_password}, smtp::{send_code_to_update_email, send_code_to_update_password}},
+    utils::{
+        security::{Claims, hash_password, verify_password},
+        smtp::{send_code_to_update_email, send_code_to_update_password},
+    },
 };
 use argon2::password_hash::rand_core::{OsRng, RngCore};
 use chrono::{Duration, Local};
@@ -17,6 +24,7 @@ use sea_orm::{
     prelude::{Expr, Uuid},
 };
 use serde_json::json;
+use validator::Validate;
 
 pub struct UserService;
 
@@ -29,20 +37,14 @@ impl UserService {
             .await
             .unwrap_or_default()
     }
-    pub async fn get_user(
-        state: &AppState,
-        id: Uuid,
-    ) -> Result<UserDto, AppError> {
+    pub async fn get_user(state: &AppState, id: Uuid) -> Result<UserDto, AppError> {
         User::find_by_id(id)
             .into_partial_model()
             .one(&state.conn)
             .await?
             .ok_or(AppError::NotFound)
     }
-    pub async fn create_user(
-        state: &AppState,
-        payload: RegisterPayload,
-    ) -> Result<(), AppError> {
+    pub async fn create_user(state: &AppState, payload: RegisterPayload) -> Result<(), AppError> {
         let mut user =
             users::ActiveModel::from_json(json!(payload)).map_err(|_| AppError::BadRequest)?;
 
@@ -52,11 +54,9 @@ impl UserService {
 
         Ok(())
     }
-    pub async fn update_user(
-        state: &AppState,
-        payload: UserDto,
-    ) -> Result<(), AppError> {
-        let user = users::ActiveModel::from_json(json!(payload)).map_err(|_| AppError::BadRequest)?;
+    pub async fn update_user(state: &AppState, payload: UserDto) -> Result<(), AppError> {
+        let user =
+            users::ActiveModel::from_json(json!(payload)).map_err(|_| AppError::BadRequest)?;
 
         user.update(&state.conn).await?;
 
@@ -65,7 +65,7 @@ impl UserService {
     pub async fn update_profile(
         state: &AppState,
         payload: ProfileUpdatePayload,
-        id: Uuid
+        id: Uuid,
     ) -> Result<(), AppError> {
         let mut user = User::find_by_id(id)
             .one(&state.conn)
@@ -82,10 +82,7 @@ impl UserService {
 
         Ok(())
     }
-    pub async fn delete_user(
-        state: &AppState,
-        id: Uuid,
-    ) -> Result<(), AppError> {
+    pub async fn delete_user(state: &AppState, id: Uuid) -> Result<(), AppError> {
         let mut user = User::find_by_id(id)
             .one(&state.conn)
             .await?
@@ -103,14 +100,17 @@ impl UserService {
         claims: Claims,
         payload: EmailResetPayload,
     ) -> Result<(), AppError> {
-        Self::create_and_send_code(state, payload.id, payload.code, Some(claims.email), None).await
+        payload.validate()?;
+        Self::_verify_code(state, payload.id, payload.code, Some(claims.email), None).await
     }
 
     pub async fn confirm_password_reset(
         state: &AppState,
         payload: PasswordResetPayload,
     ) -> Result<(), AppError> {
-        Self::create_and_send_code(
+        payload.validate()?;
+
+        Self::_verify_code(
             state,
             payload.id,
             payload.code,
@@ -197,7 +197,7 @@ impl UserService {
 
         Ok(verification_code.id)
     }
-    async fn create_and_send_code(
+    async fn _verify_code(
         state: &AppState,
         invitation_id: Uuid,
         code: String,

@@ -1,7 +1,7 @@
 use axum::{
-    Json,
     http::StatusCode,
     response::{IntoResponse, Response},
+    Json,
 };
 use serde_json::json;
 use thiserror::Error;
@@ -32,6 +32,9 @@ pub enum AppError {
     #[error("Internal Server Error")]
     InternalServerError,
 
+    #[error("Validation error")]
+    ValidationError(#[from] validator::ValidationErrors),
+
     #[error("Database error")]
     DbErr(
         #[from]
@@ -60,6 +63,25 @@ impl IntoResponse for AppError {
             AppError::BadRequest => (StatusCode::BAD_REQUEST, self.to_string()),
             AppError::Forbidden => (StatusCode::FORBIDDEN, self.to_string()),
             AppError::Custom(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
+
+            AppError::ValidationError(e) => {
+                let errors = e
+                    .field_errors()
+                    .into_iter()
+                    .map(|(field, errors)| {
+                        let messages = errors
+                            .iter()
+                            .map(|err| err.message.as_ref().unwrap().to_string())
+                            .collect::<Vec<_>>();
+                        (field, messages)
+                    })
+                    .collect::<serde_json::Value>();
+                return (
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    Json(json!({ "errors": errors })),
+                )
+                    .into_response();
+            }
 
             AppError::DbErr(e) => {
                 tracing::error!("Database source error: {:?}", e);

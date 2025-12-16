@@ -2,20 +2,23 @@ use crate::{
     AppState,
     dtos::{
         auth::EmailResetPayload,
-        common::{IdResponse, MessageResponse}, profile::{ProfileUpdatePayload, UserDto},
+        common::{IdResponse, MessageResponse},
+        profile::{ProfileUpdatePayload, UserDto},
     },
     error::AppError,
     services::user::UserService,
     utils::security::Claims,
 };
 use axum::{
-    Json, Router, extract::{Path, State}, routing::{get, post, put}
+    Json, Router,
+    extract::{Path, State},
+    routing::{get, post, put},
 };
 use sea_orm::prelude::Uuid;
 
 pub fn profile_router() -> Router<AppState> {
     Router::new()
-        .route("/users",get(get_all_users))
+        .route("/users", get(get_all_users))
         .route("/users/:id", get(get_user))
         .route("/users", put(update_profile))
         .route(
@@ -25,10 +28,7 @@ pub fn profile_router() -> Router<AppState> {
         .route("/email/:id", put(confirm_and_update_email))
 }
 
-async fn get_all_users(
-    State(state): State<AppState>,
-    _: Claims,
-) -> Json<Vec<UserDto>> {
+async fn get_all_users(State(state): State<AppState>, _: Claims) -> Json<Vec<UserDto>> {
     Json(UserService::get_users(&state).await)
 }
 
@@ -76,7 +76,6 @@ async fn confirm_and_update_email(
     })
 }
 
-
 // #[has_any_role(Admin, TeamOwner)]
 // async fn change_team_leader(
 //     State(state): State<AppState>,
@@ -84,21 +83,20 @@ async fn confirm_and_update_email(
 //     Path(old_team_leader_id): Path<Uuid>,
 //     Path(new_team_leader_id): Path<Uuid>,
 // ) -> Result<impl IntoResponse, GlobalError> {
-    
 
 //     Ok(Json(CustomMessage {
 //         message: "Успешное обновление профиля".to_string(),
 //     }))
 // }
-    // public void changeTeamLeader(String teamLeaderId, String userId){
-    //     User oldTeamLeader = userRepository.findById(teamLeaderId).orElseThrow(() -> new NotFoundException("Not found"));
-    //     oldTeamLeader.getRoles().remove(Role.TEAM_LEADER);
-    //     profileClient.checkUser(mapper.map(userRepository.save(oldTeamLeader), UserDTO.class));
-    //     template.opsForHash().delete("user", oldTeamLeader.getEmail().toLowerCase());
-    //     User newTeamLeader = userRepository.findById(userId).orElseThrow(() -> new NotFoundException("Not found"));
-    //     if (newTeamLeader.getRoles().stream().noneMatch(role -> role.equals(Role.TEAM_LEADER))) {
-    //         newTeamLeader.getRoles().add(Role.TEAM_LEADER);
-    //         profileClient.checkUser(mapper.map(userRepository.save(newTeamLeader), UserDTO.class));
-    //         template.opsForHash().delete("user", newTeamLeader.getEmail().toLowerCase());
-    //     }
-    // }
+// public void changeTeamLeader(String teamLeaderId, String userId){
+//     User oldTeamLeader = userRepository.findById(teamLeaderId).orElseThrow(() -> new NotFoundException("Not found"));
+//     oldTeamLeader.getRoles().remove(Role.TEAM_LEADER);
+//     profileClient.checkUser(mapper.map(userRepository.save(oldTeamLeader), UserDTO.class));
+//     template.opsForHash().delete("user", oldTeamLeader.getEmail().toLowerCase());
+//     User newTeamLeader = userRepository.findById(userId).orElseThrow(() -> new NotFoundException("Not found"));
+//     if (newTeamLeader.getRoles().stream().noneMatch(role -> role.equals(Role.TEAM_LEADER))) {
+//         newTeamLeader.getRoles().add(Role.TEAM_LEADER);
+//         profileClient.checkUser(mapper.map(userRepository.save(newTeamLeader), UserDTO.class));
+//         template.opsForHash().delete("user", newTeamLeader.getEmail().toLowerCase());
+//     }
+// }

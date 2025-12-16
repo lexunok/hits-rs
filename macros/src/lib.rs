@@ -123,7 +123,6 @@ pub fn has_all_roles(attr: TokenStream, item: TokenStream) -> TokenStream {
     quote! { #input }.into()
 }
 
-
 #[proc_macro_derive(IntoDataResponse)]
 pub fn into_data_response_derive(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as syn::DeriveInput);

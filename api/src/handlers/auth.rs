@@ -2,7 +2,7 @@ use crate::{
     AppState,
     dtos::{
         auth::{InvitationResponse, LoginPayload, PasswordResetPayload, RegisterPayload},
-        common::{MessageResponse, IdResponse, ParamsId},
+        common::{IdResponse, MessageResponse, ParamsId},
     },
     error::AppError,
     services::{auth::AuthService, invitation::InvitationService, user::UserService},

@@ -1,8 +1,18 @@
 use macros::IntoDataResponse;
-use sea_orm::{DerivePartialModel, prelude::{DateTimeWithTimeZone, Uuid}};
+use sea_orm::{
+    DerivePartialModel,
+    prelude::{DateTimeWithTimeZone, Uuid},
+};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug,IntoDataResponse, Serialize, Deserialize, DerivePartialModel)]
+#[derive(Debug, Deserialize)]
+pub struct ProfileUpdatePayload {
+    pub last_name: String,
+    pub first_name: String,
+    pub study_group: Option<String>,
+    pub telephone: Option<String>,
+}
+#[derive(IntoDataResponse, Debug, Serialize, Deserialize, DerivePartialModel)]
 #[sea_orm(entity = "entity::users::Entity")]
 pub struct UserDto {
     pub id: Uuid,
@@ -13,11 +23,4 @@ pub struct UserDto {
     pub last_name: String,
     pub first_name: String,
     pub created_at: DateTimeWithTimeZone,
-}
-#[derive(Debug, Deserialize)]
-pub struct ProfileUpdatePayload {
-    pub last_name: String,
-    pub first_name: String,
-    pub study_group: Option<String>,
-    pub telephone: Option<String>,
 }
