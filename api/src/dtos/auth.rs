@@ -1,4 +1,4 @@
-use crate::dtos::common::IntoApiResponse;
+use macros::IntoDataResponse;
 use sea_orm::prelude::Uuid;
 use serde::{Deserialize, Serialize};
 
@@ -16,12 +16,11 @@ pub struct RegisterPayload {
     pub study_group: Option<String>,
     pub telephone: Option<String>,
 }
-#[derive(Debug, Serialize)]
+#[derive(IntoDataResponse, Debug, Serialize)]
 pub struct InvitationResponse {
     pub email: String,
     pub code: Uuid,
 }
-impl IntoApiResponse for InvitationResponse {}
 
 #[derive(Debug, Deserialize)]
 pub struct PasswordResetPayload {

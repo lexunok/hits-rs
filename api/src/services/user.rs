@@ -1,10 +1,8 @@
 use crate::{
     AppState,
-    dtos::admin::RegisterPayload as AdminRegisterPayload, // Alias to avoid name collision
-    dtos::auth::{EmailResetPayload, PasswordResetPayload},
+    dtos::{admin::RegisterPayload, auth::{EmailResetPayload, PasswordResetPayload}, profile::{ProfileUpdatePayload, UserDto}}, 
     error::AppError,
-    utils::security::{Claims, hash_password, verify_password},
-    utils::smtp::{send_code_to_update_email, send_code_to_update_password},
+    utils::{security::{Claims, hash_password, verify_password}, smtp::{send_code_to_update_email, send_code_to_update_password}},
 };
 use argon2::password_hash::rand_core::{OsRng, RngCore};
 use chrono::{Duration, Local};
@@ -23,9 +21,27 @@ use serde_json::json;
 pub struct UserService;
 
 impl UserService {
-    pub async fn create_user_by_admin(
+    // Пагинация и порядок
+    pub async fn get_users(state: &AppState) -> Vec<UserDto> {
+        User::find()
+            .into_partial_model()
+            .all(&state.conn)
+            .await
+            .unwrap_or_default()
+    }
+    pub async fn get_user(
         state: &AppState,
-        payload: AdminRegisterPayload,
+        id: Uuid,
+    ) -> Result<UserDto, AppError> {
+        User::find_by_id(id)
+            .into_partial_model()
+            .one(&state.conn)
+            .await?
+            .ok_or(AppError::NotFound)
+    }
+    pub async fn create_user(
+        state: &AppState,
+        payload: RegisterPayload,
     ) -> Result<(), AppError> {
         let mut user =
             users::ActiveModel::from_json(json!(payload)).map_err(|_| AppError::BadRequest)?;
@@ -36,7 +52,52 @@ impl UserService {
 
         Ok(())
     }
+    pub async fn update_user(
+        state: &AppState,
+        payload: UserDto,
+    ) -> Result<(), AppError> {
+        let user = users::ActiveModel::from_json(json!(payload)).map_err(|_| AppError::BadRequest)?;
 
+        user.update(&state.conn).await?;
+
+        Ok(())
+    }
+    pub async fn update_profile(
+        state: &AppState,
+        payload: ProfileUpdatePayload,
+        id: Uuid
+    ) -> Result<(), AppError> {
+        let mut user = User::find_by_id(id)
+            .one(&state.conn)
+            .await?
+            .ok_or(AppError::NotFound)?
+            .into_active_model();
+
+        user.first_name = Set(payload.first_name);
+        user.last_name = Set(payload.last_name);
+        user.study_group = Set(payload.study_group);
+        user.telephone = Set(payload.telephone);
+
+        user.update(&state.conn).await?;
+
+        Ok(())
+    }
+    pub async fn delete_user(
+        state: &AppState,
+        id: Uuid,
+    ) -> Result<(), AppError> {
+        let mut user = User::find_by_id(id)
+            .one(&state.conn)
+            .await?
+            .ok_or(AppError::NotFound)?
+            .into_active_model();
+
+        user.is_deleted = Set(true);
+
+        user.update(&state.conn).await?;
+
+        Ok(())
+    }
     pub async fn confirm_email_change(
         state: &AppState,
         claims: Claims,

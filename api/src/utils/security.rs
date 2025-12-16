@@ -11,6 +11,7 @@ use axum_extra::extract::{
 use chrono::{Duration, Utc};
 use entity::role::Role;
 use jsonwebtoken::{Header, Validation, decode, encode};
+use sea_orm::prelude::Uuid;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Clone)]
@@ -21,7 +22,7 @@ pub enum TokenType {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Claims {
-    pub sub: String,
+    pub sub: Uuid,
     pub email: String,
     pub first_name: String,
     pub last_name: String,
@@ -62,7 +63,7 @@ where
 }
 
 pub fn generate_tokens(
-    sub: String,
+    sub: Uuid,
     email: String,
     first_name: String,
     last_name: String,

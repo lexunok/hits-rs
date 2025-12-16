@@ -2,7 +2,7 @@ use crate::{
     AppState,
     dtos::{
         auth::{InvitationResponse, LoginPayload, PasswordResetPayload, RegisterPayload},
-        common::{ApiMessageResponse, IdResponse, ParamsId},
+        common::{MessageResponse, IdResponse, ParamsId},
     },
     error::AppError,
     services::{auth::AuthService, invitation::InvitationService, user::UserService},
@@ -49,7 +49,7 @@ async fn login(
     let user = AuthService::login(&state, payload).await?;
 
     generate_tokens(
-        user.id.to_string(),
+        user.id,
         user.email,
         user.first_name,
         user.last_name,
@@ -65,7 +65,7 @@ async fn registration(
     let user = AuthService::register_user(&state, params.id, payload).await?;
 
     generate_tokens(
-        user.id.to_string(),
+        user.id,
         user.email,
         user.first_name,
         user.last_name,
@@ -99,11 +99,10 @@ async fn request_to_update_password(
 async fn confirm_and_update_password(
     State(state): State<AppState>,
     Json(payload): Json<PasswordResetPayload>,
-) -> Result<ApiMessageResponse, AppError> {
+) -> Result<MessageResponse, AppError> {
     UserService::confirm_password_reset(&state, payload).await?;
 
-    Ok(ApiMessageResponse {
-        success: true,
+    Ok(MessageResponse {
         message: "Успешное обновление пароля".to_string(),
     })
 }

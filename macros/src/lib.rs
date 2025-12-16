@@ -122,3 +122,18 @@ pub fn has_all_roles(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     quote! { #input }.into()
 }
+
+
+#[proc_macro_derive(IntoDataResponse)]
+pub fn into_data_response_derive(input: TokenStream) -> TokenStream {
+    let ast = parse_macro_input!(input as syn::DeriveInput);
+    let name = &ast.ident;
+    let generated_impl = quote! {
+        impl axum::response::IntoResponse for #name {
+            fn into_response(self) -> axum::response::Response {
+                axum::Json(self).into_response()
+            }
+        }
+    };
+    generated_impl.into()
+}
