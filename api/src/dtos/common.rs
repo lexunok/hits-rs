@@ -3,8 +3,9 @@ use sea_orm::prelude::Uuid;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
-pub struct ParamsId {
-    pub id: Uuid,
+pub struct PaginationParams {
+    pub page: u64,
+    pub page_size: u64,
 }
 #[derive(IntoDataResponse, Debug, Serialize)]
 pub struct MessageResponse {

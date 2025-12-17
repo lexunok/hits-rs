@@ -1,7 +1,7 @@
 use crate::{
     AppState,
     dtos::{
-        admin::{InvitationPayload, RegisterPayload},
+        admin::{InvitationPayload, RegisterPayload, UserUpdatePayload},
         common::MessageResponse,
         profile::UserDto,
     },
@@ -22,7 +22,7 @@ pub fn admin_router() -> Router<AppState> {
         .route("/invitations", post(send_invitations))
         .route("/users", post(create_user))
         .route("/users", put(update_user))
-        .route("/users/:id", delete(delete_user))
+        .route("/users/{id}", delete(delete_user))
 }
 
 #[has_role(Admin)]
@@ -64,7 +64,7 @@ async fn create_user(
 async fn update_user(
     State(state): State<AppState>,
     claims: Claims,
-    Json(payload): Json<UserDto>,
+    Json(payload): Json<UserUpdatePayload>,
 ) -> Result<MessageResponse, AppError> {
     UserService::update_user(&state, payload).await?;
 

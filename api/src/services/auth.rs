@@ -47,7 +47,7 @@ impl AuthService {
         let user = User::find_by_email(payload.email.to_lowercase())
             .one(&state.conn)
             .await?
-            .ok_or(AppError::NotFound)?;
+            .ok_or(AppError::WrongCredentials)?;
 
         if !verify_password(&user.password, &payload.password) {
             return Err(AppError::WrongCredentials);

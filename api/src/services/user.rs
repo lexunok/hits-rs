@@ -1,9 +1,7 @@
 use crate::{
     AppState,
     dtos::{
-        admin::RegisterPayload,
-        auth::{EmailResetPayload, PasswordResetPayload},
-        profile::{ProfileUpdatePayload, UserDto},
+        admin::{RegisterPayload, UserUpdatePayload}, auth::{EmailResetPayload, PasswordResetPayload}, common::PaginationParams, profile::{ProfileUpdatePayload, UserDto}
     },
     error::AppError,
     utils::{
@@ -18,6 +16,8 @@ use entity::{
     verification_code::{self, Entity as VerificationCode},
 };
 use sea_orm::{
+    QueryOrder,
+    PaginatorTrait,
     ActiveModelTrait,
     ActiveValue::Set,
     ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, TransactionTrait,
@@ -29,11 +29,15 @@ use validator::Validate;
 pub struct UserService;
 
 impl UserService {
-    // Пагинация и порядок
-    pub async fn get_users(state: &AppState) -> Vec<UserDto> {
+    pub async fn get_users(
+        state: &AppState,
+        pagination: PaginationParams,
+    ) -> Vec<UserDto> {
         User::find()
+            .order_by_desc(users::Column::CreatedAt)
             .into_partial_model()
-            .all(&state.conn)
+            .paginate(&state.conn, pagination.page_size)
+            .fetch_page(pagination.page)
             .await
             .unwrap_or_default()
     }
@@ -54,10 +58,10 @@ impl UserService {
 
         Ok(())
     }
-    pub async fn update_user(state: &AppState, payload: UserDto) -> Result<(), AppError> {
+    pub async fn update_user(state: &AppState, payload: UserUpdatePayload) -> Result<(), AppError> {
         let user =
             users::ActiveModel::from_json(json!(payload)).map_err(|_| AppError::BadRequest)?;
-
+        //БЫЛО ЛИ ОБНОВЛЕНИЕ ПАРОЛЯ С ПРАВ АДМИНА?
         user.update(&state.conn).await?;
 
         Ok(())
@@ -124,6 +128,14 @@ impl UserService {
         state: &AppState,
         new_email: String,
     ) -> Result<Uuid, AppError> {
+        let user = User::find_by_email(new_email.to_lowercase())
+            .one(&state.conn)
+            .await?;
+
+        if let Some(_) =  user {
+            return Err(AppError::Custom("Пользователь с такой почтой уже существует!".to_string()));
+        }
+
         let mut rng = OsRng;
         let random_u32 = rng.next_u32();
         let code = (100_000 + (random_u32 % 900_000)).to_string();
@@ -133,7 +145,7 @@ impl UserService {
         VerificationCode::update_many()
             .col_expr(
                 verification_code::Column::ExpiryDate,
-                Expr::value(Local::now().naive_local()),
+                Expr::value(Local::now()),
             )
             .filter(verification_code::Column::Email.eq(new_email.to_lowercase().clone()))
             .filter(verification_code::Column::ExpiryDate.gt(Local::now()))
@@ -173,7 +185,7 @@ impl UserService {
         VerificationCode::update_many()
             .col_expr(
                 verification_code::Column::ExpiryDate,
-                Expr::value(Local::now().naive_local()),
+                Expr::value(Local::now()),
             )
             .filter(verification_code::Column::Email.eq(email.to_lowercase().clone()))
             .filter(verification_code::Column::ExpiryDate.gt(Local::now()))
@@ -241,7 +253,7 @@ impl UserService {
             VerificationCode::update_many()
                 .col_expr(
                     verification_code::Column::ExpiryDate,
-                    Expr::value(Local::now().naive_local()),
+                    Expr::value(Local::now()),
                 )
                 .filter(verification_code::Column::Email.eq(verification_code.email.to_lowercase()))
                 .filter(verification_code::Column::ExpiryDate.gt(Local::now()))

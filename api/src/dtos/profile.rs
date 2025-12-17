@@ -1,7 +1,7 @@
 use macros::IntoDataResponse;
 use sea_orm::{
     DerivePartialModel,
-    prelude::{DateTimeWithTimeZone, Uuid},
+    prelude::{DateTimeLocal, Uuid},
 };
 use serde::{Deserialize, Serialize};
 
@@ -22,5 +22,5 @@ pub struct UserDto {
     pub email: String,
     pub last_name: String,
     pub first_name: String,
-    pub created_at: DateTimeWithTimeZone,
+    pub created_at: DateTimeLocal,
 }

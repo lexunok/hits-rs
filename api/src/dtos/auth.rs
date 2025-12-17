@@ -7,6 +7,7 @@ use validator::Validate;
 pub struct LoginPayload {
     #[validate(email(message = "Некорректный формат email"))]
     pub email: String,
+    #[validate(length(min = 8, message = "Пароль должен быть не менее 8 символов"))]
     pub password: String,
 }
 #[derive(Debug, Deserialize, Serialize, Validate)]

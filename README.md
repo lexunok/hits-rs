@@ -56,3 +56,5 @@ cargo run -p migration -- fresh
 -Таблица invitation и password_change и email_change поле date_expired на expiry_date
 -Таблица password_change объедениена с email_change и теперь verification_code
 -Обновление почты теперь требует передачи id модельки verification_code из прошлого шага
+-Добавил пагинацию в get_users
+-Передавать enum как Admin, Initiator, TeamOwner и тд

@@ -2,7 +2,7 @@ use crate::{
     AppState,
     dtos::{
         auth::{InvitationResponse, LoginPayload, PasswordResetPayload, RegisterPayload},
-        common::{IdResponse, MessageResponse, ParamsId},
+        common::{IdResponse, MessageResponse},
     },
     error::AppError,
     services::{auth::AuthService, invitation::InvitationService, user::UserService},
@@ -10,7 +10,7 @@ use crate::{
 };
 use axum::{
     Json, Router,
-    extract::{Path, Query, State},
+    extract::{Path, State},
     response::IntoResponse,
     routing::{get, post, put},
 };
@@ -19,15 +19,15 @@ use sea_orm::prelude::Uuid;
 
 pub fn auth_router() -> Router<AppState> {
     Router::new()
-        .route("/invitation/:id", get(get_invitation))
+        .route("/invitation/{id}", get(get_invitation))
         .route("/login", post(login))
-        .route("/registration", post(registration))
+        .route("/registration/{id}", post(registration))
         .route("/refresh", post(refresh))
         .route(
-            "/password/verification/:email",
+            "/password/verification/{email}",
             post(request_to_update_password),
         )
-        .route("/password/:id", put(confirm_and_update_password))
+        .route("/password", put(confirm_and_update_password))
 }
 
 async fn get_invitation(
@@ -58,11 +58,11 @@ async fn login(
 }
 
 async fn registration(
-    Query(params): Query<ParamsId>,
     State(state): State<AppState>,
+    Path(id): Path<Uuid>,
     Json(payload): Json<RegisterPayload>,
 ) -> Result<impl IntoResponse, AppError> {
-    let user = AuthService::register_user(&state, params.id, payload).await?;
+    let user = AuthService::register_user(&state, id, payload).await?;
 
     generate_tokens(
         user.id,

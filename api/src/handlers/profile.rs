@@ -3,7 +3,7 @@ use crate::{
     dtos::{
         auth::EmailResetPayload,
         common::{IdResponse, MessageResponse},
-        profile::{ProfileUpdatePayload, UserDto},
+        profile::ProfileUpdatePayload,
     },
     error::AppError,
     services::user::UserService,
@@ -12,32 +12,17 @@ use crate::{
 use axum::{
     Json, Router,
     extract::{Path, State},
-    routing::{get, post, put},
+    routing::{post, put},
 };
-use sea_orm::prelude::Uuid;
 
 pub fn profile_router() -> Router<AppState> {
     Router::new()
-        .route("/users", get(get_all_users))
-        .route("/users/:id", get(get_user))
-        .route("/users", put(update_profile))
+        .route("/", put(update_profile))
         .route(
-            "/email/verification/:new_email",
+            "/email/verification/{new_email}",
             post(request_to_update_email),
         )
-        .route("/email/:id", put(confirm_and_update_email))
-}
-
-async fn get_all_users(State(state): State<AppState>, _: Claims) -> Json<Vec<UserDto>> {
-    Json(UserService::get_users(&state).await)
-}
-
-async fn get_user(
-    State(state): State<AppState>,
-    _: Claims,
-    Path(id): Path<Uuid>,
-) -> Result<UserDto, AppError> {
-    UserService::get_user(&state, id).await
+        .route("/email", put(confirm_and_update_email))
 }
 
 async fn update_profile(
@@ -67,9 +52,9 @@ async fn request_to_update_email(
 async fn confirm_and_update_email(
     State(state): State<AppState>,
     claims: Claims,
-    payload: axum::Json<EmailResetPayload>,
+    Json(payload): Json<EmailResetPayload>,
 ) -> Result<MessageResponse, AppError> {
-    UserService::confirm_email_change(&state, claims, payload.0).await?;
+    UserService::confirm_email_change(&state, claims, payload).await?;
 
     Ok(MessageResponse {
         message: "Успешное обновление почты".to_string(),
