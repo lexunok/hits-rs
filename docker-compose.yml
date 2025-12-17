@@ -1,0 +1,48 @@
+version: "3.8"
+
+services:
+  app:
+    build: .
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+      - redis
+    environment:
+      - PORT=8080
+      - JWT_SECRET=SECRETSDFKDSJFKLDSJFLKDSJFLKJSDLK123123213
+      - DATABASE_URL=postgres://lexunok:password@db:5432/hits
+      - REDIS_URL=redis://redis:6379/
+      - CLIENT_URL=http://localhost:5135
+      - ADMIN_USERNAME=lexunok@gmail.com
+      - ADMIN_PASSWORD=lexunok2505
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_USER= #найти гдето
+      - SMTP_PASSWORD= #найти гдето
+      - SMTP_FROM=hist@tyuiu.ru
+      - RUST_LOG=debug
+
+  db:
+    image: postgres:16
+    restart: always
+    environment:
+      - POSTGRES_DB=hits
+      - POSTGRES_USER=lexunok
+      - POSTGRES_PASSWORD=password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:latest
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:

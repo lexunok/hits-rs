@@ -43,7 +43,7 @@ impl AuthService {
 
     pub async fn login(state: &AppState, payload: LoginPayload) -> Result<users::Model, AppError> {
         payload.validate()?;
-        
+
         let user = User::find_by_email(payload.email.to_lowercase())
             .one(&state.conn)
             .await?
@@ -62,7 +62,7 @@ impl AuthService {
         payload: RegisterPayload,
     ) -> Result<users::Model, AppError> {
         payload.validate()?;
-        
+
         let txn = state.conn.begin().await?;
 
         let invitation = Invitation::find_by_id(invitation_id)

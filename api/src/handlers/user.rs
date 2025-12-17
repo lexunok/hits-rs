@@ -1,9 +1,14 @@
 use crate::{
-    AppState, dtos::{common::PaginationParams, profile::UserDto}, error::AppError, services::user::UserService, utils::security::Claims
+    AppState,
+    dtos::{common::PaginationParams, profile::UserDto},
+    error::AppError,
+    services::user::UserService,
+    utils::security::Claims,
 };
 use axum::{
     Json, Router,
-    extract::{Path, Query, State}, routing::get,
+    extract::{Path, Query, State},
+    routing::get,
 };
 use sea_orm::prelude::Uuid;
 
@@ -27,5 +32,3 @@ async fn get_user(
 ) -> Result<UserDto, AppError> {
     UserService::get_user(&state, id).await
 }
-
-

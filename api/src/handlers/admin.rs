@@ -1,9 +1,8 @@
 use crate::{
     AppState,
     dtos::{
-        admin::{InvitationPayload, RegisterPayload, UserUpdatePayload},
+        admin::{InvitationPayload, UserCreatePayload, UserUpdatePayload},
         common::MessageResponse,
-        profile::UserDto,
     },
     error::AppError,
     services::{invitation::InvitationService, user::UserService},
@@ -22,6 +21,7 @@ pub fn admin_router() -> Router<AppState> {
         .route("/invitations", post(send_invitations))
         .route("/users", post(create_user))
         .route("/users", put(update_user))
+        .route("/users/restore/{email}", put(restore_user))
         .route("/users/{id}", delete(delete_user))
 }
 
@@ -51,7 +51,7 @@ async fn send_invitations(
 async fn create_user(
     State(state): State<AppState>,
     claims: Claims,
-    Json(payload): Json<RegisterPayload>,
+    Json(payload): Json<UserCreatePayload>,
 ) -> Result<MessageResponse, AppError> {
     UserService::create_user(&state, payload).await?;
 
@@ -70,6 +70,19 @@ async fn update_user(
 
     Ok(MessageResponse {
         message: "Успешное обновление пользователя".to_string(),
+    })
+}
+
+#[has_role(Admin)]
+async fn restore_user(
+    State(state): State<AppState>,
+    claims: Claims,
+    Path(email): Path<String>,
+) -> Result<MessageResponse, AppError> {
+    UserService::restore_user(&state, email).await?;
+
+    Ok(MessageResponse {
+        message: "Успешное восстановление пользователя".to_string(),
     })
 }
 

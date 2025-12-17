@@ -1,10 +1,16 @@
-# Добавить новую миграцию
-```
-sea-orm-cli migrate generate create_user_table
-```
+# hits-rs API
 
-# Запуск бд 
-```
+Бэкенд сервиса hits.
+
+## Настройка окружения
+
+### Запуск базы данных и Redis
+
+Для запуска необходимых сервисов (PostgreSQL и Redis) можно использовать Docker или Podman.
+
+**С помощью Docker:**
+```bash
+# Запуск PostgreSQL
 docker run -d \
   --name hits \
   -e POSTGRES_DB=hits \
@@ -12,15 +18,17 @@ docker run -d \
   -e POSTGRES_PASSWORD=password \
   -p 5434:5432 \
   postgres:16
-```
-```
+
+# Запуск Redis
 docker run -d \
   --name redis \
   -p 6379:6379 \
   redis:latest
 ```
-Альтернатива на Podman
-```
+
+**С помощью Podman:**
+```bash
+# Запуск PostgreSQL
 podman run -d \
   --name hits \
   -e POSTGRES_DB=hits \
@@ -28,33 +36,60 @@ podman run -d \
   -e POSTGRES_PASSWORD=password \
   -p 5434:5432 \
   docker.io/postgres:16
-```
-```
+
+# Запуск Redis
 podman run -d \
   --name redis \
   -p 6379:6379 \
   docker.io/redis:latest
 ```
 
-# Генерация энтити
+## Разработка
+
+### Миграции базы данных
+
+Для работы с миграциями используется `sea-orm-cli`.
+
+**Создание новой миграции:**
+```bash
+sea-orm-cli migrate generate <название_миграции>
 ```
-sea-orm-cli generate entity --output-dir ./entity/src --lib --entity-format dense --with-serde both
+*Пример:*
+```bash
+sea-orm-cli migrate generate create_user_table
 ```
 
-# Сегодня будет дроп
+**Применение всех миграций (накатить):**
+Для применения всех ожидающих миграций, выполните:
+```bash
+cargo run -p migration -- up
 ```
+
+**Полный сброс и применение всех миграций:**
+Эта команда удалит все данные в базе данных, а затем применит все миграции с самого начала.
+```bash
 cargo run -p migration -- fresh
 ```
 
-Изменения:
--Вход переносим на фронт.
--Пути теперь почти все новые, ну как минимум без /v1
--Модель приглашений теперь поле emails а не email а путь на отправку /invitations.
--При 401 обработке на фронте токен должен обновляться /refresh
--Не помню как было но регистрация сразу генерит токены, а study group и telephone опциональны, также возможно для фронта требуется продление срока приглашения и получение приглашения при заходе на страницу но это не точно
--Not Found на фронт переносим
--Таблица invitation и password_change и email_change поле date_expired на expiry_date
--Таблица password_change объедениена с email_change и теперь verification_code
--Обновление почты теперь требует передачи id модельки verification_code из прошлого шага
--Добавил пагинацию в get_users
--Передавать enum как Admin, Initiator, TeamOwner и тд
+### Генерация сущностей (Entities)
+
+После изменения таблиц в базе данных через миграции, необходимо обновить сущности SeaORM.
+```bash
+sea-orm-cli generate entity --output-dir ./entity/src --lib --entity-format dense --with-serde both
+```
+
+## Ключевые изменения и решения
+
+- Вход переносится на фронт.
+- Пути теперь почти все новые, без префикса `/v1`.
+- Модель приглашений теперь имеет поле `emails` (множественное число) вместо `email`, а путь для отправки - `/invitations`.
+- При обработке статуса `401 Unauthorized` на фронтенде токен должен обновляться через `/refresh`.
+- Регистрация сразу генерирует токены. Поля `study_group` и `telephone` опциональны.
+- Возможно, для фронтенда потребуется продление срока приглашения и получение приглашения при заходе на страницу.
+- Обработка `Not Found` переносится на фронтенд.
+- В таблицах `invitation`, `password_change` и `email_change` поле `date_expired` переименовано в `expiry_date`.
+- Таблицы `password_change` и `email_change` объединены в одну - `verification_code`.
+- Обновление почты теперь требует передачи `id` модели `verification_code` из предыдущего шага.
+- Добавлена пагинация в `get_users`.
+- Передача ролей осуществляется строковыми значениями, например: `Admin`, `Initiator`, `TeamOwner`.
+- Добавлена функциональность восстановления пользователя.

@@ -1,7 +1,8 @@
 use entity::role::Role;
 use macros::IntoDataResponse;
-use sea_orm::{DerivePartialModel, prelude::{DateTimeLocal, Uuid}};
+use sea_orm::{DerivePartialModel, prelude::Uuid};
 use serde::{Deserialize, Serialize};
+use validator::Validate;
 
 #[derive(Debug, Deserialize)]
 pub struct InvitationPayload {
@@ -9,7 +10,7 @@ pub struct InvitationPayload {
     pub roles: Vec<Role>,
 }
 #[derive(Debug, Deserialize, Serialize)]
-pub struct RegisterPayload {
+pub struct UserCreatePayload {
     pub email: String,
     pub password: String,
     pub last_name: String,
@@ -18,16 +19,15 @@ pub struct RegisterPayload {
     pub study_group: Option<String>,
     pub telephone: Option<String>,
 }
-#[derive(IntoDataResponse, Debug, Serialize, Deserialize, DerivePartialModel)]
+#[derive(IntoDataResponse, Debug, Serialize, Deserialize, Validate, DerivePartialModel)]
 #[sea_orm(entity = "entity::users::Entity")]
 pub struct UserUpdatePayload {
     pub id: Uuid,
     pub study_group: Option<String>,
     pub telephone: Option<String>,
-    pub roles: Vec<String>,
-    pub password: String,        
+    pub roles: Vec<Role>,
+    #[validate(email(message = "Некорректный формат email"))]
     pub email: String,
     pub last_name: String,
     pub first_name: String,
-    pub created_at: DateTimeLocal,
 }

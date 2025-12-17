@@ -25,6 +25,7 @@ redis = { version = "1.0.0", features = ["tokio-native-tls-comp"] }
 tera = "1.20.1"
 thiserror = "2.0.17"
 validator = { version = "0.20.0", features = ["derive"] }
+tower-http = { version = "0.6.0", features = ["cors"] }
 
 [dependencies.sea-orm]
 version = "2.0.0-rc.20"

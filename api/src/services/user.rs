@@ -1,7 +1,10 @@
 use crate::{
     AppState,
     dtos::{
-        admin::{RegisterPayload, UserUpdatePayload}, auth::{EmailResetPayload, PasswordResetPayload}, common::PaginationParams, profile::{ProfileUpdatePayload, UserDto}
+        admin::{UserCreatePayload, UserUpdatePayload},
+        auth::{EmailResetPayload, PasswordResetPayload},
+        common::PaginationParams,
+        profile::{ProfileUpdatePayload, UserDto},
     },
     error::AppError,
     utils::{
@@ -16,11 +19,10 @@ use entity::{
     verification_code::{self, Entity as VerificationCode},
 };
 use sea_orm::{
-    QueryOrder,
-    PaginatorTrait,
     ActiveModelTrait,
     ActiveValue::Set,
-    ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, TransactionTrait,
+    ColumnTrait, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter, QueryOrder,
+    TransactionTrait,
     prelude::{Expr, Uuid},
 };
 use serde_json::json;
@@ -29,11 +31,9 @@ use validator::Validate;
 pub struct UserService;
 
 impl UserService {
-    pub async fn get_users(
-        state: &AppState,
-        pagination: PaginationParams,
-    ) -> Vec<UserDto> {
+    pub async fn get_users(state: &AppState, pagination: PaginationParams) -> Vec<UserDto> {
         User::find()
+            .filter(users::Column::IsDeleted.eq(false))
             .order_by_desc(users::Column::CreatedAt)
             .into_partial_model()
             .paginate(&state.conn, pagination.page_size)
@@ -48,10 +48,11 @@ impl UserService {
             .await?
             .ok_or(AppError::NotFound)
     }
-    pub async fn create_user(state: &AppState, payload: RegisterPayload) -> Result<(), AppError> {
+    pub async fn create_user(state: &AppState, payload: UserCreatePayload) -> Result<(), AppError> {
         let mut user =
             users::ActiveModel::from_json(json!(payload)).map_err(|_| AppError::BadRequest)?;
 
+        user.email = Set(payload.email.to_lowercase());
         user.password = Set(hash_password(&payload.password)?);
 
         user.insert(&state.conn).await?;
@@ -59,9 +60,11 @@ impl UserService {
         Ok(())
     }
     pub async fn update_user(state: &AppState, payload: UserUpdatePayload) -> Result<(), AppError> {
-        let user =
+        let mut user =
             users::ActiveModel::from_json(json!(payload)).map_err(|_| AppError::BadRequest)?;
-        //БЫЛО ЛИ ОБНОВЛЕНИЕ ПАРОЛЯ С ПРАВ АДМИНА?
+
+        user.email = Set(payload.email.to_lowercase());
+
         user.update(&state.conn).await?;
 
         Ok(())
@@ -81,6 +84,19 @@ impl UserService {
         user.last_name = Set(payload.last_name);
         user.study_group = Set(payload.study_group);
         user.telephone = Set(payload.telephone);
+
+        user.update(&state.conn).await?;
+
+        Ok(())
+    }
+    pub async fn restore_user(state: &AppState, email: String) -> Result<(), AppError> {
+        let mut user = User::find_by_email(email)
+            .one(&state.conn)
+            .await?
+            .ok_or(AppError::NotFound)?
+            .into_active_model();
+
+        user.is_deleted = Set(false);
 
         user.update(&state.conn).await?;
 
@@ -132,8 +148,10 @@ impl UserService {
             .one(&state.conn)
             .await?;
 
-        if let Some(_) =  user {
-            return Err(AppError::Custom("Пользователь с такой почтой уже существует!".to_string()));
+        if let Some(_) = user {
+            return Err(AppError::Custom(
+                "Пользователь с такой почтой уже существует!".to_string(),
+            ));
         }
 
         let mut rng = OsRng;
