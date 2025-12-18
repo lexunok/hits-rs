@@ -4,11 +4,6 @@ use sea_orm::{DerivePartialModel, prelude::Uuid};
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
-#[derive(Debug, Deserialize)]
-pub struct InvitationPayload {
-    pub emails: Vec<String>,
-    pub roles: Vec<Role>,
-}
 #[derive(Debug, Deserialize, Serialize)]
 pub struct UserCreatePayload {
     pub email: String,

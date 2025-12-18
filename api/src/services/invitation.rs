@@ -1,5 +1,5 @@
 use crate::{
-    AppState, dtos::admin::InvitationPayload, error::AppError, utils::security::Claims,
+    AppState, dtos::invitation::InvitationPayload, error::AppError, utils::security::Claims,
     workers::invitation_worker::INVITATIONS_STREAM_NAME,
 };
 use chrono::{Duration, Local};

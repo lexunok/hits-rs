@@ -12,7 +12,7 @@ pub struct ProfileUpdatePayload {
     pub study_group: Option<String>,
     pub telephone: Option<String>,
 }
-#[derive(IntoDataResponse, Debug, Serialize, Deserialize, DerivePartialModel)]
+#[derive(IntoDataResponse, Debug, Serialize, Deserialize, DerivePartialModel, Clone)]
 #[sea_orm(entity = "entity::users::Entity")]
 pub struct UserDto {
     pub id: Uuid,

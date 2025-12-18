@@ -1,25 +1,24 @@
 use crate::{
     AppState,
     dtos::{
-        auth::{InvitationResponse, LoginPayload, PasswordResetPayload, RegisterPayload},
+        auth::{LoginPayload, PasswordResetPayload, RegisterPayload},
         common::{IdResponse, MessageResponse},
     },
     error::AppError,
-    services::{auth::AuthService, invitation::InvitationService, user::UserService},
+    services::{auth::AuthService, user::UserService},
     utils::security::generate_tokens,
 };
 use axum::{
     Json, Router,
     extract::{Path, State},
     response::IntoResponse,
-    routing::{get, post, put},
+    routing::{post, put},
 };
 use axum_extra::extract::CookieJar;
 use sea_orm::prelude::Uuid;
 
 pub fn auth_router() -> Router<AppState> {
     Router::new()
-        .route("/invitation/{id}", get(get_invitation))
         .route("/login", post(login))
         .route("/registration/{id}", post(registration))
         .route("/refresh", post(refresh))
@@ -28,18 +27,6 @@ pub fn auth_router() -> Router<AppState> {
             post(request_to_update_password),
         )
         .route("/password", put(confirm_and_update_password))
-}
-
-async fn get_invitation(
-    State(state): State<AppState>,
-    Path(id): Path<Uuid>,
-) -> Result<InvitationResponse, AppError> {
-    let invitation = InvitationService::get_invitation(&state, id).await?;
-
-    Ok(InvitationResponse {
-        email: invitation.email,
-        code: invitation.id,
-    })
 }
 
 async fn login(

@@ -1,4 +1,3 @@
-use macros::IntoDataResponse;
 use sea_orm::prelude::Uuid;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
@@ -34,9 +33,4 @@ pub struct EmailResetPayload {
     pub id: Uuid,
     #[validate(length(equal = 6, message = "Код должен состоять из 6 цифр"))]
     pub code: String,
-}
-#[derive(IntoDataResponse, Debug, Serialize)]
-pub struct InvitationResponse {
-    pub email: String,
-    pub code: Uuid,
 }

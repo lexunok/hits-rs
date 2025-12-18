@@ -2,7 +2,7 @@ use crate::{
     AppState,
     config::GLOBAL_CONFIG,
     dtos::{
-        admin::{UserCreatePayload, UserUpdatePayload},
+        user::{UserCreatePayload, UserUpdatePayload},
         auth::{EmailResetPayload, PasswordResetPayload},
         common::PaginationParams,
         profile::{ProfileUpdatePayload, UserDto},
