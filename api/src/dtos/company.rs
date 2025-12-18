@@ -1,8 +1,8 @@
+use super::profile::UserDto;
 use macros::IntoDataResponse;
 use sea_orm::prelude::Uuid;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
-use super::profile::UserDto;
 
 // Для запроса на создание
 #[derive(Debug, Deserialize, Validate)]

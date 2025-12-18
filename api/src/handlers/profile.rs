@@ -6,12 +6,12 @@ use crate::{
         profile::ProfileUpdatePayload,
     },
     error::AppError,
-    services::user::UserService,
+    services::profile::ProfileService,
     utils::security::Claims,
 };
 use axum::{
-    extract::{Multipart, Path, State},
     Json, Router,
+    extract::{Multipart, Path, State},
     routing::{post, put},
 };
 
@@ -30,12 +30,16 @@ async fn upload_avatar(
     claims: Claims,
     mut multipart: Multipart,
 ) -> Result<MessageResponse, AppError> {
-    while let Some(field) = multipart.next_field().await.map_err(|_| AppError::BadRequest)? {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|_| AppError::BadRequest)?
+    {
         let field_name = field.name().unwrap_or("").to_string();
 
         if field_name == "avatar" {
             let bytes = field.bytes().await.map_err(|_| AppError::BadRequest)?;
-            UserService::upload_avatar(claims.sub, bytes).await?;
+            ProfileService::upload_avatar(claims.sub, bytes).await?;
 
             return Ok(MessageResponse {
                 message: "Аватар успешно обновлен".to_string(),
@@ -51,7 +55,7 @@ async fn update_profile(
     claims: Claims,
     Json(payload): Json<ProfileUpdatePayload>,
 ) -> Result<MessageResponse, AppError> {
-    UserService::update_profile(&state, payload, claims.sub).await?;
+    ProfileService::update(&state, payload, claims.sub).await?;
 
     Ok(MessageResponse {
         message: "Успешное обновление профиля".to_string(),
@@ -63,7 +67,7 @@ async fn request_to_update_email(
     _: Claims,
     Path(new_email): Path<String>,
 ) -> Result<IdResponse, AppError> {
-    let verification_id = UserService::request_email_change(&state, new_email).await?;
+    let verification_id = ProfileService::request_email_change(&state, new_email).await?;
 
     Ok(IdResponse {
         id: verification_id,
@@ -75,7 +79,7 @@ async fn confirm_and_update_email(
     claims: Claims,
     Json(payload): Json<EmailResetPayload>,
 ) -> Result<MessageResponse, AppError> {
-    UserService::confirm_email_change(&state, claims, payload).await?;
+    ProfileService::confirm_email_change(&state, claims, payload).await?;
 
     Ok(MessageResponse {
         message: "Успешное обновление почты".to_string(),

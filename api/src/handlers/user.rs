@@ -1,6 +1,10 @@
 use crate::{
     AppState,
-    dtos::{common::{MessageResponse, PaginationParams}, profile::UserDto, user::{UserCreatePayload, UserUpdatePayload}},
+    dtos::{
+        common::{MessageResponse, PaginationParams},
+        profile::UserDto,
+        user::{UserCreatePayload, UserUpdatePayload},
+    },
     error::AppError,
     services::user::UserService,
     utils::security::Claims,
@@ -25,14 +29,14 @@ async fn get_all_users(
     _: Claims,
     Query(pagination): Query<PaginationParams>,
 ) -> Json<Vec<UserDto>> {
-    Json(UserService::get_users(&state, pagination).await)
+    Json(UserService::get_all(&state, pagination).await)
 }
 async fn get_user(
     State(state): State<AppState>,
     _: Claims,
     Path(id): Path<Uuid>,
 ) -> Result<UserDto, AppError> {
-    UserService::get_user(&state, id).await
+    UserService::get_one(&state, id).await
 }
 
 #[has_role(Admin)]
@@ -41,7 +45,7 @@ async fn create_user(
     claims: Claims,
     Json(payload): Json<UserCreatePayload>,
 ) -> Result<MessageResponse, AppError> {
-    UserService::create_user(&state, payload).await?;
+    UserService::create(&state, payload).await?;
 
     Ok(MessageResponse {
         message: "Успешное создание пользователя".to_string(),
@@ -54,7 +58,7 @@ async fn update_user(
     claims: Claims,
     Json(payload): Json<UserUpdatePayload>,
 ) -> Result<MessageResponse, AppError> {
-    UserService::update_user(&state, payload).await?;
+    UserService::update(&state, payload).await?;
 
     Ok(MessageResponse {
         message: "Успешное обновление пользователя".to_string(),
@@ -67,7 +71,7 @@ async fn restore_user(
     claims: Claims,
     Path(email): Path<String>,
 ) -> Result<MessageResponse, AppError> {
-    UserService::restore_user(&state, email).await?;
+    UserService::restore(&state, email).await?;
 
     Ok(MessageResponse {
         message: "Успешное восстановление пользователя".to_string(),
@@ -80,7 +84,7 @@ async fn delete_user(
     claims: Claims,
     Path(id): Path<Uuid>,
 ) -> Result<MessageResponse, AppError> {
-    UserService::delete_user(&state, id).await?;
+    UserService::delete(&state, id).await?;
 
     Ok(MessageResponse {
         message: "Успешное удаление пользователя".to_string(),

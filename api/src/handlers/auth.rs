@@ -5,7 +5,7 @@ use crate::{
         common::{IdResponse, MessageResponse},
     },
     error::AppError,
-    services::{auth::AuthService, user::UserService},
+    services::{auth::AuthService, profile::ProfileService},
     utils::security::generate_tokens,
 };
 use axum::{
@@ -76,7 +76,7 @@ async fn request_to_update_password(
     State(state): State<AppState>,
     Path(email): Path<String>,
 ) -> Result<IdResponse, AppError> {
-    let verification_id = UserService::request_password_reset(&state, email).await?;
+    let verification_id = ProfileService::request_password_reset(&state, email).await?;
 
     Ok(IdResponse {
         id: verification_id,
@@ -87,7 +87,7 @@ async fn confirm_and_update_password(
     State(state): State<AppState>,
     Json(payload): Json<PasswordResetPayload>,
 ) -> Result<MessageResponse, AppError> {
-    UserService::confirm_password_reset(&state, payload).await?;
+    ProfileService::confirm_password_reset(&state, payload).await?;
 
     Ok(MessageResponse {
         message: "Успешное обновление пароля".to_string(),
