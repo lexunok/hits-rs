@@ -1,5 +1,6 @@
 use crate::{
     AppState,
+    config::GLOBAL_CONFIG,
     dtos::{
         admin::{UserCreatePayload, UserUpdatePayload},
         auth::{EmailResetPayload, PasswordResetPayload},
@@ -13,11 +14,13 @@ use crate::{
     },
 };
 use argon2::password_hash::rand_core::{OsRng, RngCore};
+use axum::body::Bytes;
 use chrono::{Duration, Local};
 use entity::{
     users::{self, Entity as User},
     verification_code::{self, Entity as VerificationCode},
 };
+use image::ImageFormat;
 use sea_orm::{
     ActiveModelTrait,
     ActiveValue::Set,
@@ -26,6 +29,7 @@ use sea_orm::{
     prelude::{Expr, Uuid},
 };
 use serde_json::json;
+use std::path::PathBuf;
 use validator::Validate;
 
 pub struct UserService;
@@ -115,6 +119,23 @@ impl UserService {
 
         Ok(())
     }
+
+    pub async fn upload_avatar(
+        user_id: Uuid,
+        bytes: Bytes,
+    ) -> Result<(), AppError> {
+        let avatar_dir = PathBuf::from(&GLOBAL_CONFIG.avatar_path);
+        let file_path = avatar_dir.join(format!("{}.webp", user_id));
+
+        let img = image::load_from_memory(&bytes)
+            .map_err(|_| AppError::Custom("Ошибка при загрузке изображения".to_string()))?;
+
+        img.save_with_format(file_path, ImageFormat::WebP)
+            .map_err(|_| AppError::Custom("Ошибка при сохранении аватара".to_string()))?;
+
+        Ok(())
+    }
+    
     pub async fn confirm_email_change(
         state: &AppState,
         claims: Claims,

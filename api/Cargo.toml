@@ -7,7 +7,7 @@ edition = "2024"
 entity = { path = "../entity" }
 migration = { path = "../migration" }
 macros = { path = "../macros" }
-axum = { version = "0.8.7", features = ["macros"] }
+axum = { version = "0.8.7", features = ["macros", "multipart"] }
 axum-extra = { version = "0.12.2", features = ["cookie"] }
 serde = { version = "1.0.228", features = ["derive"] }
 tokio = { version = "1.48.0", features = ["full"] }
@@ -25,7 +25,8 @@ redis = { version = "1.0.0", features = ["tokio-native-tls-comp"] }
 tera = "1.20.1"
 thiserror = "2.0.17"
 validator = { version = "0.20.0", features = ["derive"] }
-tower-http = { version = "0.6.0", features = ["cors"] }
+tower-http = { version = "0.6.0", features = ["cors", "fs"] }
+image = "0.25.1"
 
 [dependencies.sea-orm]
 version = "2.0.0-rc.20"

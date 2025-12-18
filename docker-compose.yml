@@ -15,6 +15,7 @@ services:
       - DATABASE_URL=postgres://lexunok:password@db:5432/hits
       - REDIS_URL=redis://redis:6379/
       - CLIENT_URL=http://localhost:5135
+      - AVATAR_PATH=images/avatars
       - ADMIN_USERNAME=lexunok@gmail.com
       - ADMIN_PASSWORD=lexunok2505
       - SMTP_HOST=smtp.gmail.com
@@ -22,6 +23,8 @@ services:
       - SMTP_PASSWORD= #найти гдето
       - SMTP_FROM=hist@tyuiu.ru
       - RUST_LOG=debug
+    volumes:
+      - avatar_data:/images/avatars
 
   db:
     image: postgres:16
@@ -46,3 +49,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  avatar_data:

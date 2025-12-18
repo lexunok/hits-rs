@@ -10,19 +10,40 @@ use crate::{
     utils::security::Claims,
 };
 use axum::{
+    extract::{Multipart, Path, State},
     Json, Router,
-    extract::{Path, State},
     routing::{post, put},
 };
 
 pub fn profile_router() -> Router<AppState> {
     Router::new()
         .route("/", put(update_profile))
+        .route("/avatar", post(upload_avatar))
         .route(
             "/email/verification/{new_email}",
             post(request_to_update_email),
         )
         .route("/email", put(confirm_and_update_email))
+}
+
+async fn upload_avatar(
+    claims: Claims,
+    mut multipart: Multipart,
+) -> Result<MessageResponse, AppError> {
+    while let Some(field) = multipart.next_field().await.map_err(|_| AppError::BadRequest)? {
+        let field_name = field.name().unwrap_or("").to_string();
+
+        if field_name == "avatar" {
+            let bytes = field.bytes().await.map_err(|_| AppError::BadRequest)?;
+            UserService::upload_avatar(claims.sub, bytes).await?;
+
+            return Ok(MessageResponse {
+                message: "Аватар успешно обновлен".to_string(),
+            });
+        }
+    }
+
+    Err(AppError::BadRequest)
 }
 
 async fn update_profile(

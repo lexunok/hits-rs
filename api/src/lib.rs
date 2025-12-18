@@ -6,7 +6,10 @@ use axum::Router;
 use axum::http::{HeaderValue, Method, header};
 use migration::{Migrator, MigratorTrait};
 use sea_orm::{Database, DatabaseConnection};
+use std::fs;
+use std::path::PathBuf;
 use tower_http::cors::CorsLayer;
+use tower_http::services::ServeDir;
 
 mod config;
 mod dtos;
@@ -55,8 +58,12 @@ pub async fn start() -> anyhow::Result<()> {
         .allow_credentials(true)
         .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]);
 
+    fs::create_dir_all(GLOBAL_CONFIG.avatar_path.clone())?;
+    let avatar_dir = PathBuf::from(GLOBAL_CONFIG.avatar_path.clone());
+
     let app = Router::new()
         .nest("/api", main_router())
+        .nest_service("/avatar", ServeDir::new(avatar_dir))
         .with_state(state)
         .layer(cors);
 

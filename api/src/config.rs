@@ -19,6 +19,7 @@ pub static GLOBAL_CONFIG: LazyLock<Config> = LazyLock::new(|| {
     let secret = env::var("JWT_SECRET").expect("JWT_SECRET must be set");
     let encoding_key = EncodingKey::from_secret(secret.as_bytes());
     let decoding_key = DecodingKey::from_secret(secret.as_bytes());
+    let avatar_path = env::var("AVATAR_PATH").expect("AVATAR_PATH must be set");
 
     Config {
         port,
@@ -33,6 +34,7 @@ pub static GLOBAL_CONFIG: LazyLock<Config> = LazyLock::new(|| {
         smtp_password,
         encoding_key,
         decoding_key,
+        avatar_path,
     }
 });
 
@@ -49,4 +51,5 @@ pub struct Config {
     pub smtp_password: String,
     pub encoding_key: EncodingKey,
     pub decoding_key: DecodingKey,
+    pub avatar_path: String,
 }
