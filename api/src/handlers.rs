@@ -4,16 +4,16 @@ use crate::{
     AppState,
     config::GLOBAL_CONFIG,
     handlers::{
-        auth::auth_router, invitation::invitation_router, profile::profile_router,
-        user::user_router,
+        auth::auth_router, company::company_router, invitation::invitation_router,
+        profile::profile_router, user::user_router,
     },
 };
 use axum::Router;
 use tower_http::services::ServeDir;
 
 pub mod auth;
+pub mod company;
 pub mod invitation;
-// pub mod company;
 pub mod profile;
 pub mod user;
 
@@ -23,7 +23,7 @@ pub fn main_router() -> Router<AppState> {
     Router::new()
         .nest("/auth", auth_router())
         .nest("/invitation", invitation_router())
-        // .nest("/company", company_router())
+        .nest("/company", company_router())
         .nest("/profile", profile_router())
         .nest("/users", user_router())
         .nest_service("/images/avatar", ServeDir::new(avatar_dir))

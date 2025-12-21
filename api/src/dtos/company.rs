@@ -1,13 +1,10 @@
 use super::profile::UserDto;
 use macros::IntoDataResponse;
-use sea_orm::prelude::Uuid;
+use sea_orm::{DerivePartialModel, prelude::Uuid};
 use serde::{Deserialize, Serialize};
-use validator::Validate;
 
-// Для запроса на создание
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize)]
 pub struct CreateCompanyRequest {
-    #[validate(length(min = 1, message = "Название компании не может быть пустым"))]
     pub name: String,
     pub owner_id: Uuid,
     #[serde(default)]
@@ -16,16 +13,19 @@ pub struct CreateCompanyRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateCompanyRequest {
+    pub id: Uuid,
     pub name: Option<String>,
     pub owner_id: Option<Uuid>,
     pub members: Option<Vec<Uuid>>,
 }
 
-// Для ответа с детальной информацией (собирается в сервисе)
-#[derive(IntoDataResponse, Debug, Serialize)]
-pub struct CompanyDetailsResponse {
+#[derive(IntoDataResponse, Debug, Serialize, Deserialize, DerivePartialModel)]
+#[sea_orm(entity = "entity::company::Entity")]
+pub struct CompanyResponse {
     pub id: Uuid,
     pub name: String,
+    #[sea_orm(nested)]
     pub owner: UserDto,
+    #[sea_orm(skip)]
     pub members: Vec<UserDto>,
 }

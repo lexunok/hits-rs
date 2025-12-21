@@ -13,8 +13,10 @@ pub struct Model {
     pub owner_id: Uuid,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
-    #[sea_orm(has_many, via = "company_member")]
-    pub users: HasMany<super::users::Entity>,
+    #[sea_orm(belongs_to, from = "owner_id", to = "id", relation_enum = "Owner")]
+    pub owner: HasOne<super::users::Entity>,
+    #[sea_orm(has_many, via = "company_member", relation_enum = "Members")]
+    pub members: HasMany<super::users::Entity>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}
