@@ -93,3 +93,5 @@ sea-orm-cli generate entity --output-dir ./entity/src --lib --entity-format dens
 - Добавлена пагинация в `get_users`.
 - Передача ролей осуществляется строковыми значениями, например: `Admin`, `Initiator`, `TeamOwner`.
 - Добавлена функциональность восстановления пользователя.
+- Company_Members теперь новая таблица
+- Enum SkillType возможно тоже другие

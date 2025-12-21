@@ -4,5 +4,6 @@ pub use super::company::Entity as Company;
 pub use super::company_member::Entity as CompanyMember;
 pub use super::invitation::Entity as Invitation;
 pub use super::role::Role;
+pub use super::skill::Entity as Skill;
 pub use super::users::Entity as Users;
 pub use super::verification_code::Entity as VerificationCode;

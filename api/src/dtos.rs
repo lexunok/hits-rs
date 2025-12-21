@@ -5,3 +5,4 @@ pub mod company;
 pub mod profile;
 pub mod smtp;
 pub mod user;
+pub mod skill;
