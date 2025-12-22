@@ -11,6 +11,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20251211_060650_create_verification_code_table::Migration),
             Box::new(m20251218_060739_create_company_table::Migration),
             Box::new(m20251221_103728_create_skill_table::Migration),
+            Box::new(m20251222_064711_create_groups_table::Migration),
         ]
     }
 }
@@ -19,3 +20,4 @@ mod m20251205_050148_create_invitation_table;
 mod m20251211_060650_create_verification_code_table;
 mod m20251218_060739_create_company_table;
 mod m20251221_103728_create_skill_table;
+mod m20251222_064711_create_groups_table;

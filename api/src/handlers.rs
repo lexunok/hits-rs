@@ -4,8 +4,7 @@ use crate::{
     AppState,
     config::GLOBAL_CONFIG,
     handlers::{
-        auth::auth_router, company::company_router, invitation::invitation_router,
-        profile::profile_router, user::user_router, skill::skill_router,
+        auth::auth_router, company::company_router, group::group_router, invitation::invitation_router, profile::profile_router, skill::skill_router, user::user_router
     },
 };
 use axum::Router;
@@ -17,6 +16,7 @@ pub mod invitation;
 pub mod profile;
 pub mod user;
 pub mod skill;
+pub mod group;
 
 pub fn main_router() -> Router<AppState> {
     let avatar_dir = PathBuf::from(GLOBAL_CONFIG.avatar_path.clone());
@@ -28,5 +28,6 @@ pub fn main_router() -> Router<AppState> {
         .nest("/profile", profile_router())
         .nest("/users", user_router())
         .nest("/skill", skill_router())
+        .nest("/group", group_router())
         .nest_service("/images/avatar", ServeDir::new(avatar_dir))
 }

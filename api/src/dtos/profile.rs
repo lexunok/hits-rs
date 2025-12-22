@@ -1,3 +1,4 @@
+use entity::role::Role;
 use macros::IntoDataResponse;
 use sea_orm::{
     DerivePartialModel,
@@ -18,7 +19,7 @@ pub struct UserDto {
     pub id: Uuid,
     pub study_group: Option<String>,
     pub telephone: Option<String>,
-    pub roles: Vec<String>,
+    pub roles: Vec<Role>,
     pub email: String,
     pub last_name: String,
     pub first_name: String,
