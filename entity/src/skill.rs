@@ -3,6 +3,8 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use crate::skill_type::SkillType;
+
 #[sea_orm::model]
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
 #[sea_orm(table_name = "skill")]
@@ -10,7 +12,7 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
     pub name: String,
-    pub skill_type: String,
+    pub skill_type: SkillType,
     pub confirmed: bool,
     pub creator_id: Uuid,
     pub updater_id: Option<Uuid>,

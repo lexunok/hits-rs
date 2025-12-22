@@ -16,6 +16,7 @@ pub struct UpdateSkillRequest {
     pub name: Option<String>,
     #[serde(rename = "type")]
     pub skill_type: Option<SkillType>,
+    pub confirmed: Option<bool>,
 }
 
 #[derive(Serialize, IntoDataResponse, Debug, Clone, DerivePartialModel)]
@@ -28,4 +29,5 @@ pub struct SkillDto {
     pub confirmed: bool,
     pub creator_id: Uuid,
     pub updater_id: Option<Uuid>,
+    pub deleter_id: Option<Uuid>,
 }
