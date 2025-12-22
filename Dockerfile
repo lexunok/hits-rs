@@ -9,7 +9,8 @@ RUN apt-get update && \
 WORKDIR /usr/src/hits-rs
 COPY . .
 
-RUN cargo build --release
+# RUN cargo build --release
+RUN cargo build
 
 FROM debian:bookworm-slim AS runner
 
@@ -17,7 +18,8 @@ RUN apt-get update && \
     apt-get install -y libssl3 ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /usr/src/hits-rs/target/release/hits-rs /usr/local/bin/hits-rs
+# COPY --from=builder /usr/src/hits-rs/target/release/hits-rs /usr/local/bin/hits-rs
+COPY --from=builder /usr/src/hits-rs/target/debug/hits-rs /usr/local/bin/hits-rs
 
 EXPOSE 8080
 CMD ["hits-rs"]

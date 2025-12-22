@@ -103,18 +103,20 @@ pub fn generate_tokens(
     let refresh_token = encode(&Header::default(), &claims, &GLOBAL_CONFIG.encoding_key)
         .map_err(|_| AppError::TokenCreation)?;
 
+    let is_secure: bool = !cfg!(debug_assertions);
+
     let access_cookie = Cookie::build(("access_token", access_token))
         .path("/")
         .http_only(true)
         .same_site(SameSite::Lax)
-        .secure(true)
+        .secure(is_secure)
         .max_age(time::Duration::minutes(30));
 
     let refresh_cookie = Cookie::build(("refresh_token", refresh_token))
         .path("/")
         .http_only(true)
         .same_site(SameSite::Lax)
-        .secure(true)
+        .secure(is_secure)
         .max_age(time::Duration::days(30));
 
     Ok(CookieJar::new().add(access_cookie).add(refresh_cookie))
