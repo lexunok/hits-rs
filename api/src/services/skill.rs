@@ -60,6 +60,14 @@ impl SkillService {
         creator_id: Uuid,
         is_confirmed: bool,
     ) -> Result<SkillDto, AppError> {
+        Skill::find()                                                                                                  
+            .filter(skill::Column::Name.eq(&payload.name))             
+            .filter(skill::Column::SkillType.eq(payload.skill_type.clone()))                                                                                                                                                                                             
+            .filter(skill::Column::DeletedAt.is_null())                                                                                                        
+            .one(&state.conn)                                                                                                                                  
+            .await
+            .map_err(|_| AppError::Custom("Навык с таким именем и типом уже существует.".to_string()))?;                                                                                                                                           
+
         let new_skill = skill::ActiveModel {
             name: Set(payload.name),
             skill_type: Set(payload.skill_type),

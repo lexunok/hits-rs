@@ -464,3 +464,130 @@
   ```
 - **Возможные ошибки:**
   - **`401 Unauthorized`**: Требуется аутентификация.
+
+---
+
+## Skill API (`/skill`)
+
+### Получение всех навыков
+- **`GET /skill`**
+- **Описание:** Возвращает список всех навыков.
+- **Ответ (`200 OK`, `Vec<SkillDto>`):**
+  ```json
+  [
+    {
+      "id": "skill-uuid-1",
+      "name": "Rust",
+      "type": "Backend",
+      "confirmed": true,
+      "creator_id": "user-uuid-1",
+      "updater_id": null,
+      "deleter_id": null
+    }
+  ]
+  ```
+- **Возможные ошибки:**
+  - **`401 Unauthorized`**: Требуется аутентификация.
+
+### Получение своих и подтвержденных навыков
+- **`GET /skill/my`**
+- **Описание:** Возвращает `HashMap`, где ключ - это тип навыка, а значение - список подтвержденных навыков и навыков, созданных текущим пользователем.
+- **Ответ (`200 OK`, `HashMap<String, Vec<SkillDto>>`):**
+  ```json
+  {
+    "Backend": [
+      {
+        "id": "skill-uuid-1",
+        "name": "Rust",
+        "type": "Backend",
+        "confirmed": true,
+        "creator_id": "user-uuid-1",
+        "updater_id": null,
+        "deleter_id": null
+      }
+    ],
+    "Frontend": [
+      {
+        "id": "skill-uuid-2",
+        "name": "React",
+        "type": "Frontend",
+        "confirmed": false,
+        "creator_id": "current-user-uuid",
+        "updater_id": null,
+        "deleter_id": null
+      }
+    ]
+  }
+  ```
+- **Возможные ошибки:**
+  - **`401 Unauthorized`**: Требуется аутентификация.
+
+### Получение навыков по типу
+- **`GET /skill/type/{skill_type}`**
+- **Описание:** Возвращает список навыков определенного типа (`Frontend`, `Backend`, `DevOps`, `Design`).
+- **Ответ (`200 OK`, `Vec<SkillDto>`):**
+  ```json
+  [
+    {
+      "id": "skill-uuid-1",
+      "name": "Rust",
+      "type": "Backend",
+      "confirmed": true,
+      "creator_id": "user-uuid-1",
+      "updater_id": null,
+      "deleter_id": null
+    }
+  ]
+  ```
+- **Возможные ошибки:**
+  - **`401 Unauthorized`**: Требуется аутентификация.
+
+### Создание навыка
+- **`POST /skill`**
+- **Описание:** Создает новый навык. Если запрос от администратора, навык сразу помечается как `confirmed`. В противном случае `confirmed` устанавливается в `false`.
+- **Тело запроса (`CreateSkillRequest`):**
+  ```json
+  {
+    "name": "New Skill",
+    "type": "Backend"
+  }
+  ```
+- **Ответ (`200 OK`, `SkillDto`):** Возвращает созданный навык.
+- **Возможные ошибки:**
+  - **`401 Unauthorized`**: Требуется аутентификация.
+  - **`400 Bad Request`**: Навык с таким именем уже существует.
+
+### Обновление навыка
+- **`PUT /skill`**
+- **Описание:** Обновляет данные навыка. Требует прав администратора.
+- **Тело запроса (`UpdateSkillRequest`):**
+  ```json
+  {
+    "id": "skill-uuid-to-update",
+    "name": "Updated Skill Name",
+    "type": "Frontend",
+    "confirmed": true
+  }
+  ```
+- **Ответ (`200 OK`, `MessageResponse`):**
+  ```json
+  {
+    "message": "Навык успешно обновлен"
+  }
+  ```
+- **Возможные ошибки:**
+  - **`403 Forbidden`**: Нет прав администратора.
+  - **`404 Not Found`**: Навык не найден.
+
+### Удаление навыка
+- **`DELETE /skill/{id}`**
+- **Описание:** Удаляет навык. Требует прав администратора.
+- **Ответ (`200 OK`, `MessageResponse`):**
+  ```json
+  {
+    "message": "Навык успешно удален"
+  }
+  ```
+- **Возможные ошибки:**
+  - **`403 Forbidden`**: Нет прав администратора.
+  - **`404 Not Found`**: Навык не найден.
