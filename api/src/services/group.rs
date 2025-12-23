@@ -1,6 +1,6 @@
 use crate::{
     AppState,
-    dtos::{group::GroupDto, skill::{CreateSkillRequest, SkillDto, UpdateSkillRequest}},
+    dtos::{group::GroupDto, profile::UserDto, skill::{CreateSkillRequest, SkillDto, UpdateSkillRequest}},
     error::AppError,
 };
 use chrono::Local;
@@ -24,12 +24,30 @@ impl GroupService {
     pub async fn get_one(
         state: &AppState,
         id: Uuid,
-    ) -> Result<(), AppError> {
+    ) -> Result<GroupDto, AppError> {
         let group = Group::find_by_id(id)
             .one(&state.conn)
             .await?
-            .ok_or(AppError::NotFound)?;
-        Ok(())
+            .ok_or(AppError::NotFound)?
+            .into_ex();
+
+        let users: Vec<UserDto> = group.users.iter().map(|u| UserDto{
+            id: u.id,
+            study_group: u.study_group.to_owned(),
+            telephone: u.telephone.to_owned(),
+            roles: u.roles.to_owned(),
+            email: u.email.to_owned(),
+            last_name: u.last_name.to_owned(),
+            first_name: u.first_name.to_owned(),
+            created_at: u.created_at.into()
+        }).collect();
+
+        Ok(GroupDto {
+            id: group.id,
+            name: group.name,
+            roles: group.roles,
+            users
+        })
     }
 
     pub async fn create(

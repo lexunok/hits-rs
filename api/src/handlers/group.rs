@@ -19,11 +19,11 @@ use std::collections::HashMap;
 
 pub fn group_router() -> Router<AppState> {
     Router::new()
-        .route("/", get(get_all_skills).post(create_skill).put(update_skill))
-        .route("/{id}", get(get_group_by_id).delete(delete_skill))
+        .route("/", get(get_all_groups).post(create_group).put(update_group))
+        .route("/{id}", get(get_group_by_id).delete(delete_group))
 }
 
-async fn get_all_skills(
+async fn get_all_groups(
     State(state): State<AppState>,
     _: Claims,
 ) -> Json<Vec<GroupDto>> {
@@ -35,13 +35,13 @@ async fn get_group_by_id(
     State(state): State<AppState>,
     _: Claims,
     Path(id): Path<Uuid>,
-) -> Result<(), AppError> {
+) -> Result<GroupDto, AppError> {
     let group = GroupService::get_one(&state, id).await?;
     Ok(group)
 }
 
 #[has_role(Admin)]
-async fn create_skill(
+async fn create_group(
     State(state): State<AppState>,
     claims: Claims,
     Json(payload): Json<CreateSkillRequest>,
@@ -52,7 +52,7 @@ async fn create_skill(
 }
 
 #[has_role(Admin)]
-async fn update_skill(
+async fn update_group(
     State(state): State<AppState>,
     claims: Claims,
     Json(payload): Json<UpdateSkillRequest>,
@@ -64,7 +64,7 @@ async fn update_skill(
 }
 
 #[has_role(Admin)]
-async fn delete_skill(
+async fn delete_group(
     State(state): State<AppState>,
     claims: Claims,
     Path(id): Path<Uuid>,

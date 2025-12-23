@@ -1,6 +1,6 @@
 use entity::role::Role;
 use macros::IntoDataResponse;
-use sea_orm::{prelude::Uuid, DerivePartialModel};
+use sea_orm::{prelude::Uuid, DerivePartialModel, FromQueryResult};
 use serde::{Deserialize, Serialize};
 
 use crate::dtos::profile::UserDto;
