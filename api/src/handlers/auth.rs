@@ -14,7 +14,7 @@ use axum::{
     response::IntoResponse,
     routing::{post, put},
 };
-use axum_extra::extract::CookieJar;
+use axum_extra::extract::{CookieJar, cookie::Cookie};
 use sea_orm::prelude::Uuid;
 
 pub fn auth_router() -> Router<AppState> {
@@ -22,6 +22,7 @@ pub fn auth_router() -> Router<AppState> {
         .route("/login", post(login))
         .route("/registration/{id}", post(registration))
         .route("/refresh", post(refresh))
+        .route("/logout", post(logout))
         .route(
             "/password/verification/{email}",
             post(request_to_update_password),
@@ -72,6 +73,15 @@ pub async fn refresh(jar: CookieJar) -> Result<impl IntoResponse, AppError> {
     )
 }
 
+pub async fn logout(jar: CookieJar) -> impl IntoResponse {
+    let mut access_cookie = Cookie::from("access_token");
+    access_cookie.set_path("/");
+
+    let mut refresh_cookie = Cookie::from("refresh_token");
+    refresh_cookie.set_path("/");
+
+    jar.remove(access_cookie).remove(refresh_cookie)
+}
 async fn request_to_update_password(
     State(state): State<AppState>,
     Path(email): Path<String>,

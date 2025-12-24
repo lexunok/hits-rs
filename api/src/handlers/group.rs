@@ -1,21 +1,19 @@
 use crate::{
     AppState,
     dtos::{
-        common::MessageResponse, group::GroupDto, skill::{CreateSkillRequest, SkillDto, UpdateSkillRequest}
+        common::MessageResponse, group::{CreateGroupRequest, GroupDto, UpdateGroupRequest}
     },
     error::AppError,
-    services::{group::GroupService, skill::SkillService},
+    services::group::GroupService,
     utils::security::Claims,
 };
 use axum::{
     Json, Router,
     extract::{Path, State},
-    routing::{delete, get},
+    routing::get,
 };
-use entity::{role::Role, skill_type::SkillType};
 use macros::has_role;
 use sea_orm::prelude::Uuid;
-use std::collections::HashMap;
 
 pub fn group_router() -> Router<AppState> {
     Router::new()
@@ -44,23 +42,20 @@ async fn get_group_by_id(
 async fn create_group(
     State(state): State<AppState>,
     claims: Claims,
-    Json(payload): Json<CreateSkillRequest>,
-) -> Result<SkillDto, AppError> {
-    let is_confirmed = claims.roles.contains(&Role::Admin);
-    let skill = GroupService::create(&state, payload, claims.sub, is_confirmed).await?;
-    Ok(skill)
+    Json(payload): Json<CreateGroupRequest>,
+) -> Result<GroupDto, AppError> {
+    let group = GroupService::create(&state, payload).await?;
+    Ok(group)
 }
 
 #[has_role(Admin)]
 async fn update_group(
     State(state): State<AppState>,
     claims: Claims,
-    Json(payload): Json<UpdateSkillRequest>,
-) -> Result<MessageResponse, AppError> {
-    GroupService::update(&state, payload, claims.sub).await?;
-    Ok(MessageResponse {
-        message: "Группа успешно обновлена".to_string(),
-    })
+    Json(payload): Json<UpdateGroupRequest>,
+) -> Result<GroupDto, AppError> {
+    let group = GroupService::update(&state, payload).await?;
+    Ok(group)
 }
 
 #[has_role(Admin)]
@@ -69,7 +64,7 @@ async fn delete_group(
     claims: Claims,
     Path(id): Path<Uuid>,
 ) -> Result<MessageResponse, AppError> {
-    GroupService::delete(&state, id, claims.sub).await?;
+    GroupService::delete(&state, id).await?;
     Ok(MessageResponse {
         message: "Группа успешно удалена".to_string(),
     })
