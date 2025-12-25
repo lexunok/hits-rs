@@ -19,7 +19,8 @@ use sea_orm::prelude::Uuid;
 
 pub fn user_router() -> Router<AppState> {
     Router::new()
-        .route("/", get(get_all_users).post(create_user).put(update_user))
+        .route("/", get(get_user).post(create_user).put(update_user))
+        .route("/all", get(get_all_users))
         .route("/{id}", get(get_user).delete(delete_user))
         .route("/restore/{email}", put(restore_user))
 }
@@ -33,10 +34,13 @@ async fn get_all_users(
 }
 async fn get_user(
     State(state): State<AppState>,
-    _: Claims,
-    Path(id): Path<Uuid>,
+    claims: Claims,
+    user_id: Option<Path<Uuid>>,
 ) -> Result<UserDto, AppError> {
-    UserService::get_one(&state, id).await
+    match user_id {
+        Some(Path(id)) => UserService::get_one(&state, id).await,
+        None => UserService::get_one(&state, claims.sub).await,
+    }
 }
 
 #[has_role(Admin)]
