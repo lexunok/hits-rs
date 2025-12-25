@@ -24,8 +24,8 @@ impl MigrationTrait for Migration {
                     .col(
                         ColumnDef::new(Group::Roles)
                             .array(ColumnType::String(StringLen::None))
-                            .not_null()
-                    )                    
+                            .not_null(),
+                    )
                     .to_owned(),
             )
             .await?;
@@ -63,11 +63,11 @@ impl MigrationTrait for Migration {
 }
 
 #[derive(Iden)]
-enum Group {
+pub enum Group {
     Table,
     Id,
     Name,
-    Roles
+    Roles,
 }
 
 #[derive(Iden)]

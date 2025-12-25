@@ -24,6 +24,8 @@ pub struct Model {
     pub companies: HasMany<super::company::Entity>,
     #[sea_orm(has_many, via = "group_member")]
     pub groups: HasMany<super::group::Entity>,
+    #[sea_orm(has_many, via = "idea_checked")]
+    pub ideas: HasMany<super::idea::Entity>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}

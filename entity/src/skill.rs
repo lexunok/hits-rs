@@ -46,6 +46,8 @@ pub struct Model {
         on_delete = "SetNull"
     )]
     pub users_1: HasOne<super::users::Entity>,
+    #[sea_orm(has_many, via = "idea_skill")]
+    pub ideas: HasMany<super::idea::Entity>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}
