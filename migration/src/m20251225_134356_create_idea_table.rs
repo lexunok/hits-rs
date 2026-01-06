@@ -25,8 +25,8 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(Idea::InitiatorId).uuid().not_null())
                     .col(ColumnDef::new(Idea::Name).string().not_null())
-                    .col(ColumnDef::new(Idea::GroupExpertId).uuid())
-                    .col(ColumnDef::new(Idea::GroupProjectOfficeId).uuid())
+                    .col(ColumnDef::new(Idea::GroupExpertId).uuid().not_null())
+                    .col(ColumnDef::new(Idea::GroupProjectOfficeId).uuid().not_null())
                     .col(ColumnDef::new(Idea::Status).string().not_null())
                     .col(
                         ColumnDef::new(Idea::IsActive)
@@ -34,18 +34,31 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .default(true),
                     )
-                    .col(ColumnDef::new(Idea::Problem).string())
-                    .col(ColumnDef::new(Idea::Solution).string())
-                    .col(ColumnDef::new(Idea::Result).string())
-                    .col(ColumnDef::new(Idea::Customer).string())
-                    .col(ColumnDef::new(Idea::ContactPerson).string())
-                    .col(ColumnDef::new(Idea::Description).string())
-                    .col(ColumnDef::new(Idea::Suitability).big_integer())
-                    .col(ColumnDef::new(Idea::Budget).big_integer())
-                    .col(ColumnDef::new(Idea::MaxTeamSize).small_integer())
-                    .col(ColumnDef::new(Idea::MinTeamSize).small_integer())
-                    .col(ColumnDef::new(Idea::PreAssessment).double())
-                    .col(ColumnDef::new(Idea::Rating).double())
+                    .col(ColumnDef::new(Idea::Problem).string().not_null())
+                    .col(ColumnDef::new(Idea::Solution).string().not_null())
+                    .col(ColumnDef::new(Idea::Result).string().not_null())
+                    .col(ColumnDef::new(Idea::Customer).string().not_null())
+                    .col(ColumnDef::new(Idea::ContactPerson).string().not_null())
+                    .col(ColumnDef::new(Idea::Description).string().not_null())
+                    .col(ColumnDef::new(Idea::Suitability).big_unsigned().not_null())
+                    .col(ColumnDef::new(Idea::Budget).big_unsigned().not_null())
+                    .col(
+                        ColumnDef::new(Idea::MaxTeamSize)
+                            .small_unsigned()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(Idea::MinTeamSize)
+                            .small_unsigned()
+                            .not_null(),
+                    )
+                    .col(ColumnDef::new(Idea::PreAssessment).double().not_null())
+                    .col(
+                        ColumnDef::new(Idea::Rating)
+                            .double()
+                            .not_null()
+                            .default(0.0),
+                    )
                     .col(
                         ColumnDef::new(Idea::CreatedAt)
                             .timestamp_with_time_zone()
@@ -61,23 +74,17 @@ impl MigrationTrait for Migration {
                     .foreign_key(
                         ForeignKey::create()
                             .from(Idea::Table, Idea::InitiatorId)
-                            .to(Users::Table, Users::Id)
-                            .on_delete(ForeignKeyAction::Cascade)
-                            .on_update(ForeignKeyAction::Cascade),
+                            .to(Users::Table, Users::Id),
                     )
                     .foreign_key(
                         ForeignKey::create()
                             .from(Idea::Table, Idea::GroupExpertId)
-                            .to(Group::Table, Group::Id)
-                            .on_delete(ForeignKeyAction::SetNull)
-                            .on_update(ForeignKeyAction::Cascade),
+                            .to(Group::Table, Group::Id),
                     )
                     .foreign_key(
                         ForeignKey::create()
                             .from(Idea::Table, Idea::GroupProjectOfficeId)
-                            .to(Group::Table, Group::Id)
-                            .on_delete(ForeignKeyAction::SetNull)
-                            .on_update(ForeignKeyAction::Cascade),
+                            .to(Group::Table, Group::Id),
                     )
                     .to_owned(),
             )

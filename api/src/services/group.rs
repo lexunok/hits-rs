@@ -1,10 +1,20 @@
 use crate::{
     AppState,
-    dtos::{group::{CreateGroupRequest, GroupDto, UpdateGroupRequest}, profile::UserDto},
+    dtos::{
+        group::{CreateGroupRequest, GroupDto, UpdateGroupRequest},
+        profile::UserDto,
+    },
     error::AppError,
 };
-use entity::{group, group_member, prelude::*, users};
-use sea_orm::{TransactionTrait, ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, sea_query, prelude::Uuid};
+use entity::{
+    group, group_member,
+    prelude::{Group, GroupMember, Users},
+    users,
+};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter,
+    TransactionTrait, prelude::Uuid, sea_query,
+};
 
 pub struct GroupService;
 
@@ -17,16 +27,13 @@ impl GroupService {
             .unwrap_or_default()
     }
 
-    pub async fn get_one(
-        state: &AppState,
-        id: Uuid,
-    ) -> Result<GroupDto, AppError> {
+    pub async fn get_one(state: &AppState, id: Uuid) -> Result<GroupDto, AppError> {
         let mut group: GroupDto = Group::find_by_id(id)
             .into_partial_model()
             .one(&state.conn)
             .await?
             .ok_or(AppError::NotFound)?;
-            
+
         let members: Vec<UserDto> = Users::find()
             .filter(
                 users::Column::Id.in_subquery(
@@ -42,15 +49,14 @@ impl GroupService {
             .await?;
 
         group.members = members;
-        
+
         Ok(group)
     }
 
     pub async fn create(
         state: &AppState,
         payload: CreateGroupRequest,
-    ) -> Result<GroupDto, AppError> {                                                                                                                                          
-
+    ) -> Result<GroupDto, AppError> {
         let txn = state.conn.begin().await?;
 
         let new_group = group::ActiveModel {
@@ -88,13 +94,13 @@ impl GroupService {
             id: new_group.id,
             name: new_group.name,
             roles: new_group.roles,
-            members
+            members,
         })
     }
 
     pub async fn update(
         state: &AppState,
-        payload: UpdateGroupRequest
+        payload: UpdateGroupRequest,
     ) -> Result<GroupDto, AppError> {
         let txn = state.conn.begin().await?;
 
@@ -130,9 +136,7 @@ impl GroupService {
                 })
                 .collect();
 
-            GroupMember::insert_many(members)
-                .exec(&txn)
-                .await?;
+            GroupMember::insert_many(members).exec(&txn).await?;
         }
 
         txn.commit().await?;

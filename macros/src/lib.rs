@@ -78,8 +78,7 @@ pub fn has_any_role(attr: TokenStream, item: TokenStream) -> TokenStream {
     });
 
     let check_code = quote! {
-        let has_any_role = #(#roles_check)||*;
-        if !has_any_role {
+        if !(#(#roles_check)||*) {
             return Err(crate::error::AppError::Forbidden);
         }
     };
@@ -108,8 +107,7 @@ pub fn has_all_roles(attr: TokenStream, item: TokenStream) -> TokenStream {
     });
 
     let check_code = quote! {
-        let has_all_roles = #(#roles_check)&&*;
-        if !has_all_roles {
+        if !(#(#roles_check)&&*) {
             return Err(crate::error::AppError::Forbidden);
         }
     };

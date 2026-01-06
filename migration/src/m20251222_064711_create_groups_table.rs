@@ -23,7 +23,7 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Group::Name).string().not_null())
                     .col(
                         ColumnDef::new(Group::Roles)
-                            .array(ColumnType::String(StringLen::None))
+                            .array(ColumnType::Text)
                             .not_null(),
                     )
                     .to_owned(),

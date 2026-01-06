@@ -1,6 +1,6 @@
 use entity::skill_type::SkillType;
 use macros::IntoDataResponse;
-use sea_orm::{prelude::Uuid, DerivePartialModel};
+use sea_orm::{DerivePartialModel, prelude::Uuid};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Debug)]
@@ -19,7 +19,7 @@ pub struct UpdateSkillRequest {
     pub confirmed: Option<bool>,
 }
 
-#[derive(Serialize, IntoDataResponse, Debug, Clone, DerivePartialModel)]
+#[derive(Serialize, Deserialize, IntoDataResponse, Debug, Clone, DerivePartialModel)]
 #[sea_orm(entity = "entity::skill::Entity")]
 pub struct SkillDto {
     pub id: Uuid,

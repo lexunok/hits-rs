@@ -1,3 +1,4 @@
+use chrono::Local;
 use entity::role::Role;
 use macros::IntoDataResponse;
 use sea_orm::{
@@ -24,4 +25,19 @@ pub struct UserDto {
     pub last_name: String,
     pub first_name: String,
     pub created_at: DateTimeLocal,
+}
+
+impl Default for UserDto {
+    fn default() -> Self {
+        Self {
+            id: Uuid::default(),
+            study_group: None,
+            telephone: None,
+            roles: vec![],
+            email: String::default(),
+            last_name: String::default(),
+            first_name: String::default(),
+            created_at: Local::now(),
+        }
+    }
 }

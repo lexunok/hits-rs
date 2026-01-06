@@ -1,140 +1,174 @@
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QuerySelect, Set,
-    TransactionTrait,
-};
-use uuid::Uuid;
-
 use crate::{
-    dtos::idea::{
-        CreateIdeaRequest, IdeaResponse, IdeaSkillRequest, UpdateIdeaRequest,
-        UpdateIdeaStatusRequest,
-    },
-    dtos::skill::SkillDto,
-    error::AppError,
-    services::{group::GroupService, profile::ProfileService},
     AppState,
+    dtos::{
+        group::GroupDto,
+        idea::{
+            IdeaDto, IdeaQueryResult, IdeaSkillRequest, IdeaStatusRequest, IdeaWithChecked,
+            SaveIdeaRequest,
+        },
+        skill::SkillDto,
+    },
+    error::AppError,
 };
+use chrono::Local;
 use entity::{
-    company, group,
-    idea::{self, IdeaStatus},
-    idea_checked, idea_skill, skill, users,
+    group,
+    idea::{self, Entity as Idea},
+    idea_checked, idea_skill,
+    idea_status::IdeaStatus,
+    prelude::{Group, IdeaSkill},
+    skill, users,
 };
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, ExprTrait, IntoActiveModel, QueryFilter,
+    QuerySelect, RelationTrait, Set, TransactionTrait,
+    prelude::Uuid,
+    sea_query::{Expr, Query},
+};
+use validator::Validate;
 
 pub struct IdeaService;
 
 impl IdeaService {
-    async fn idea_model_to_response(
-        state: &AppState,
-        model: idea::Model,
-    ) -> Result<IdeaResponse, AppError> {
-        let initiator = ProfileService::get_user_dto_by_id(state, model.initiator_id).await?;
-
-        let experts = if let Some(group_id) = model.group_expert_id {
-            Some(GroupService::get_one(state, group_id).await?)
-        } else {
-            None
-        };
-
-        let project_office = if let Some(group_id) = model.group_project_office_id {
-            Some(GroupService::get_one(state, group_id).await?)
-        } else {
-            None
-        };
-
-        Ok(IdeaResponse {
-            id: model.id,
-            initiator,
-            name: model.name,
-            experts,
-            project_office,
-            is_checked: false, // TODO: Implement is_checked
-            status: model.status,
-            created_at: model.created_at,
-            modified_at: model.modified_at,
-            is_active: model.is_active,
-            problem: model.problem,
-            solution: model.solution,
-            result: model.result,
-            customer: model.customer,
-            contact_person: model.contact_person,
-            description: model.description,
-            suitability: model.suitability,
-            budget: model.budget,
-            pre_assessment: model.pre_assessment,
-            rating: model.rating,
-            max_team_size: model.max_team_size,
-            min_team_size: model.min_team_size,
-        })
-    }
-
-    pub async fn get_idea(
+    pub async fn get_one(
         state: &AppState,
         idea_id: Uuid,
         user_id: Uuid,
-    ) -> Result<IdeaResponse, AppError> {
-        let idea = idea::Entity::find_by_id(idea_id)
-            .one(&state.db)
-            .await?
-            .ok_or_else(|| AppError::NotFound("Idea not found".to_owned()))?;
-
-        let is_checked = idea_checked::Entity::find()
-            .filter(
-                idea_checked::Column::IdeaId
-                    .eq(idea_id)
-                    .and(idea_checked::Column::UserId.eq(user_id)),
+    ) -> Result<IdeaWithChecked, AppError> {
+        let mut idea: IdeaQueryResult = Idea::find_by_id(idea_id)
+            .join_as(
+                sea_orm::JoinType::LeftJoin,
+                idea::Relation::Experts.def(),
+                "experts",
             )
-            .one(&state.db)
+            .join_as(
+                sea_orm::JoinType::LeftJoin,
+                idea::Relation::ProjectOffice.def(),
+                "project_office",
+            )
+            .left_join(users::Entity)
+            .column_as(users::Column::Email, "initiator_email")
+            .column_as(users::Column::FirstName, "initiator_first_name")
+            .column_as(users::Column::LastName, "initiator_last_name")
+            .column_as(Expr::col(("experts", group::Column::Id)), "experts_id")
+            .column_as(
+                Expr::col(("project_office", group::Column::Id)),
+                "project_office_id",
+            )
+            .column_as(Expr::col(("experts", group::Column::Name)), "experts_name")
+            .column_as(
+                Expr::col(("project_office", group::Column::Name)),
+                "project_office_name",
+            )
+            .column_as(
+                Expr::exists(
+                    Query::select()
+                        .expr(Expr::val(1))
+                        .from(idea_checked::Entity)
+                        .and_where(Expr::col(idea_checked::Column::UserId).eq(user_id))
+                        .and_where(
+                            Expr::col(idea_checked::Column::IdeaId)
+                                .equals((idea::Entity, idea::Column::Id)),
+                        )
+                        .to_owned(),
+                ),
+                "is_checked",
+            )
+            .into_model()
+            .one(&state.conn)
             .await?
-            .is_some();
+            .ok_or(AppError::NotFound)?;
 
-        if !is_checked {
+        if !idea.is_checked {
             let checked = idea_checked::ActiveModel {
                 idea_id: Set(idea_id),
                 user_id: Set(user_id),
             };
-            checked.insert(&state.db).await?;
+            let _ = checked.insert(&state.conn).await;
+            idea.is_checked = true;
         }
 
-        let mut response = Self::idea_model_to_response(state, idea).await?;
-        response.is_checked = true;
-        Ok(response)
+        Ok(idea.into())
     }
 
-    pub async fn get_all(state: &AppState) -> Result<Vec<IdeaResponse>, AppError> {
-        let ideas = idea::Entity::find().all(&state.db).await?;
-        let mut responses = Vec::new();
-        for idea in ideas {
-            responses.push(Self::idea_model_to_response(state, idea).await?);
-        }
-        Ok(responses)
-    }
-
-    pub async fn get_list_by_initiator(
+    pub async fn get_all(
         state: &AppState,
         user_id: Uuid,
-    ) -> Result<Vec<IdeaResponse>, AppError> {
-        let ideas = idea::Entity::find()
-            .filter(idea::Column::InitiatorId.eq(user_id))
-            .all(&state.db)
-            .await?;
-        let mut responses = Vec::new();
-        for idea in ideas {
-            responses.push(Self::idea_model_to_response(state, idea).await?);
-        }
-        Ok(responses)
+        initiator_filter: Option<Expr>,
+    ) -> Vec<IdeaWithChecked> {
+        Idea::find()
+            .left_join(users::Entity)
+            .column_as(users::Column::Email, "initiator_email")
+            .column_as(users::Column::FirstName, "initiator_first_name")
+            .column_as(users::Column::LastName, "initiator_last_name")
+            .column_as(
+                Expr::exists(
+                    Query::select()
+                        .expr(Expr::val(1))
+                        .from(idea_checked::Entity)
+                        .and_where(Expr::col(idea_checked::Column::UserId).eq(user_id))
+                        .and_where(
+                            Expr::col(idea_checked::Column::IdeaId)
+                                .equals((idea::Entity, idea::Column::Id)),
+                        )
+                        .to_owned(),
+                ),
+                "is_checked",
+            )
+            .filter(Condition::all().add_option(initiator_filter))
+            .into_model::<IdeaQueryResult>()
+            .all(&state.conn)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(IdeaWithChecked::from)
+            .collect()
     }
 
-    pub async fn create(
+    pub async fn get_all_by_initiator(state: &AppState, user_id: Uuid) -> Vec<IdeaWithChecked> {
+        Self::get_all(state, user_id, Some(idea::Column::InitiatorId.eq(user_id))).await
+    }
+    pub async fn get_idea_skills(state: &AppState, id: Uuid) -> Vec<SkillDto> {
+        IdeaSkill::find()
+            .filter(idea_skill::Column::IdeaId.eq(id))
+            .left_join(skill::Entity)
+            .into_partial_model()
+            .all(&state.conn)
+            .await
+            .unwrap_or_default()
+    }
+
+    pub async fn save_by_initiator(
         state: &AppState,
-        payload: CreateIdeaRequest,
+        payload: SaveIdeaRequest,
         initiator_id: Uuid,
-    ) -> Result<IdeaResponse, AppError> {
-        let idea = idea::ActiveModel {
-            initiator_id: Set(initiator_id),
+    ) -> Result<IdeaDto, AppError> {
+        Self::save(
+            state,
+            payload,
+            initiator_id,
+            Some(idea::Column::InitiatorId.eq(initiator_id)),
+        )
+        .await
+    }
+    pub async fn save(
+        state: &AppState,
+        payload: SaveIdeaRequest,
+        initiator_id: Uuid,
+        initiator_filter: Option<Expr>,
+    ) -> Result<IdeaDto, AppError> {
+        payload.validate()?;
+        if payload.max_team_size < payload.min_team_size {
+            return Err(AppError::Custom(
+                "Максимальный размер команды должен быть больше минимального".to_string(),
+            ));
+        }
+
+        let pre_assessment = (payload.suitability as f64 + payload.budget as f64) / 2.0;
+
+        let mut idea = idea::ActiveModel {
             name: Set(payload.name),
-            group_expert_id: Set(payload.group_expert_id),
-            group_project_office_id: Set(payload.group_project_office_id),
-            status: Set(IdeaStatus::New),
+            status: Set(payload.status),
             problem: Set(payload.problem),
             solution: Set(payload.solution),
             result: Set(payload.result),
@@ -143,193 +177,149 @@ impl IdeaService {
             description: Set(payload.description),
             suitability: Set(payload.suitability),
             budget: Set(payload.budget),
-            max_team_size: Set(payload.max_team_size),
             min_team_size: Set(payload.min_team_size),
+            max_team_size: Set(payload.max_team_size),
+            pre_assessment: Set(pre_assessment),
+            rating: Set(0.0),
+            is_active: Set(true),
             ..Default::default()
         };
 
-        let idea = idea.insert(&state.db).await?;
-        Self::idea_model_to_response(state, idea).await
-    }
+        let mut idea_id: Uuid = payload.id.unwrap_or_default();
 
-    pub async fn update_by_initiator(
-        state: &AppState,
-        payload: UpdateIdeaRequest,
-        initiator_id: Uuid,
-    ) -> Result<IdeaResponse, AppError> {
-        let idea = idea::Entity::find_by_id(payload.id)
-            .filter(idea::Column::InitiatorId.eq(initiator_id))
-            .one(&state.db)
-            .await?
-            .ok_or_else(|| AppError::NotFound("Idea not found or you don't have access".to_owned()))?;
+        if let Some(id) = payload.id {
+            idea.id = Set(id);
+            idea.modified_at = Set(Local::now().into());
 
-        let mut idea: idea::ActiveModel = idea.into();
-        idea.name = Set(payload.name);
-        idea.group_expert_id = Set(payload.group_expert_id);
-        idea.group_project_office_id = Set(payload.group_project_office_id);
-        idea.problem = Set(payload.problem);
-        idea.solution = Set(payload.solution);
-        idea.result = Set(payload.result);
-        idea.customer = Set(payload.customer);
-        idea.contact_person = Set(payload.contact_person);
-        idea.description = Set(payload.description);
-        idea.suitability = Set(payload.suitability);
-        idea.budget = Set(payload.budget);
-        idea.max_team_size = Set(payload.max_team_size);
-        idea.min_team_size = Set(payload.min_team_size);
+            Idea::update(idea)
+                .validate()?
+                .filter(Condition::all().add_option(initiator_filter))
+                .exec(&state.conn)
+                .await?;
+        } else {
+            let experts: GroupDto = Group::find()
+                .filter(Expr::cust(r#""group"."roles" @> ARRAY['EXPERT']"#))
+                .into_partial_model()
+                .one(&state.conn)
+                .await?
+                .ok_or(AppError::Custom(
+                    "Не существует группы экспертов".to_string(),
+                ))?;
 
-        let idea = idea.update(&state.db).await?;
-        Self::idea_model_to_response(state, idea).await
-    }
+            let project_office: GroupDto = Group::find()
+                .filter(Expr::cust(r#""group"."roles" @> ARRAY['PROJECT_OFFICE']"#))
+                .into_partial_model()
+                .one(&state.conn)
+                .await?
+                .ok_or(AppError::Custom(
+                    "Не существует группы проектного офиса".to_string(),
+                ))?;
+            idea.group_expert_id = Set(experts.id);
+            idea.group_project_office_id = Set(project_office.id);
+            idea.initiator_id = Set(initiator_id);
 
-    pub async fn update_by_admin(
-        state: &AppState,
-        payload: UpdateIdeaRequest,
-    ) -> Result<IdeaResponse, AppError> {
-        let idea = idea::Entity::find_by_id(payload.id)
-            .one(&state.db)
-            .await?
-            .ok_or_else(|| AppError::NotFound("Idea not found".to_owned()))?;
+            idea_id = idea.insert(&state.conn).await?.id;
 
-        let mut idea: idea::ActiveModel = idea.into();
-        idea.name = Set(payload.name);
-        idea.group_expert_id = Set(payload.group_expert_id);
-        idea.group_project_office_id = Set(payload.group_project_office_id);
-        idea.problem = Set(payload.problem);
-        idea.solution = Set(payload.solution);
-        idea.result = Set(payload.result);
-        idea.customer = Set(payload.customer);
-        idea.contact_person = Set(payload.contact_person);
-        idea.description = Set(payload.description);
-        idea.suitability = Set(payload.suitability);
-        idea.budget = Set(payload.budget);
-        idea.max_team_size = Set(payload.max_team_size);
-        idea.min_team_size = Set(payload.min_team_size);
-
-        let idea = idea.update(&state.db).await?;
-        Self::idea_model_to_response(state, idea).await
-    }
-
-    pub async fn delete_by_initiator(
-        state: &AppState,
-        id: Uuid,
-        initiator_id: Uuid,
-    ) -> Result<(), AppError> {
-        let res = idea::Entity::delete_by_id(id)
-            .filter(idea::Column::InitiatorId.eq(initiator_id))
-            .exec(&state.db)
-            .await?;
-
-        if res.rows_affected == 0 {
-            return Err(AppError::NotFound(
-                "Idea not found or you don't have access".to_owned(),
-            ));
+            // Нахожу список эскпертов в группе и для каждого эскперта делаю рейтинг запись
+            // "INSERT INTO rating (expert_id, is_confirmed, idea_id) VALUES ('%s', FALSE, '%s');",
+            // u.getUserId(), savedIdea.getId()
         }
-        Ok(())
-    }
 
-    pub async fn delete_by_admin(state: &AppState, id: Uuid) -> Result<(), AppError> {
-        let res = idea::Entity::delete_by_id(id).exec(&state.db).await?;
-        if res.rows_affected == 0 {
-            return Err(AppError::NotFound("Idea not found".to_owned()));
-        }
-        Ok(())
-    }
+        let response: IdeaDto = Idea::find_by_id(idea_id)
+            .join(sea_orm::JoinType::LeftJoin, idea::Relation::Experts.def())
+            .join_as(
+                sea_orm::JoinType::LeftJoin,
+                idea::Relation::ProjectOffice.def(),
+                "project_office",
+            )
+            .left_join(users::Entity)
+            .into_partial_model()
+            .one(&state.conn)
+            .await?
+            .ok_or(AppError::NotFound)?;
 
+        Ok(response)
+    }
     pub async fn update_status_by_initiator(
         state: &AppState,
         id: Uuid,
         initiator_id: Uuid,
     ) -> Result<(), AppError> {
-        let idea = idea::Entity::find_by_id(id)
+        let mut idea = Idea::find_by_id(id)
             .filter(idea::Column::InitiatorId.eq(initiator_id))
-            .one(&state.db)
+            .one(&state.conn)
             .await?
-            .ok_or_else(|| AppError::NotFound("Idea not found or you don't have access".to_owned()))?;
+            .ok_or(AppError::NotFound)?
+            .into_active_model();
 
-        let mut idea: idea::ActiveModel = idea.into();
         idea.status = Set(IdeaStatus::OnApproval);
-        idea.update(&state.db).await?;
+        idea.modified_at = Set(Local::now().into());
+        idea.update(&state.conn).await?;
         Ok(())
     }
-
     pub async fn update_status(
         state: &AppState,
-        id: Uuid,
-        status: UpdateIdeaStatusRequest,
+        payload: IdeaStatusRequest,
     ) -> Result<(), AppError> {
-        let idea = idea::Entity::find_by_id(id)
-            .one(&state.db)
+        let mut idea = Idea::find_by_id(payload.id)
+            .one(&state.conn)
             .await?
-            .ok_or_else(|| AppError::NotFound("Idea not found".to_owned()))?;
+            .ok_or(AppError::NotFound)?
+            .into_active_model();
 
-        let mut idea: idea::ActiveModel = idea.into();
-        idea.status = Set(status.status);
-        idea.update(&state.db).await?;
+        idea.status = Set(payload.status);
+        idea.modified_at = Set(Local::now().into());
+        idea.update(&state.conn).await?;
         Ok(())
     }
-
-    pub async fn get_idea_skills(
-        state: &AppState,
-        idea_id: Uuid,
-    ) -> Result<Vec<SkillDto>, AppError> {
-        let idea = idea::Entity::find_by_id(idea_id)
-            .one(&state.db)
-            .await?
-            .ok_or_else(|| AppError::NotFound("Idea not found".to_owned()))?;
-
-        let skills = idea
-            .find_related(skill::Entity)
-            .all(&state.db)
-            .await?
-            .into_iter()
-            .map(|model| SkillDto::from(model))
-            .collect();
-
-        Ok(skills)
-    }
-
-    pub async fn update_idea_skills(
+    pub async fn save_skills(
         state: &AppState,
         payload: IdeaSkillRequest,
-        user_id: Uuid,
-        is_admin: bool,
+        initiator_id: Option<Uuid>,
     ) -> Result<(), AppError> {
-        let idea = idea::Entity::find_by_id(payload.idea_id)
-            .one(&state.db)
-            .await?
-            .ok_or_else(|| AppError::NotFound("Idea not found".to_owned()))?;
-
-        if idea.initiator_id != user_id && !is_admin {
-            return Err(AppError::Forbidden);
+        if let Some(initiator_id) = initiator_id {
+            Idea::find_by_id(payload.id)
+                .filter(idea::Column::InitiatorId.eq(initiator_id))
+                .one(&state.conn)
+                .await?
+                .ok_or(AppError::Forbidden)?;
         }
 
-        let skills_to_add: Vec<idea_skill::ActiveModel> = payload
-            .skills
-            .iter()
-            .map(|skill| idea_skill::ActiveModel {
-                idea_id: Set(payload.idea_id),
-                skill_id: Set(skill.id),
-            })
-            .collect();
+        let idea_skills = payload.skills.iter().map(|skill| idea_skill::ActiveModel {
+            idea_id: Set(payload.id),
+            skill_id: Set(skill.id),
+        });
 
-        state.db.transaction::<_, (), AppError>(|txn| {
-            Box::pin(async move {
-                idea_skill::Entity::delete_many()
-                    .filter(idea_skill::Column::IdeaId.eq(payload.idea_id))
-                    .exec(txn)
-                    .await?;
+        let txn = state.conn.begin().await?;
 
-                if !skills_to_add.is_empty() {
-                    idea_skill::Entity::insert_many(skills_to_add)
-                        .exec(txn)
-                        .await?;
-                }
+        IdeaSkill::delete_many()
+            .filter(idea_skill::Column::IdeaId.eq(payload.id))
+            .exec(&txn)
+            .await?;
 
-                Ok(())
-            })
-        }).await?;
+        IdeaSkill::insert_many(idea_skills).exec(&txn).await?;
 
+        txn.commit().await?;
+
+        Ok(())
+    }
+    pub async fn delete(
+        state: &AppState,
+        idea_id: Uuid,
+        initiator_filter: Option<Expr>,
+    ) -> Result<(), AppError> {
+        Idea::delete_by_id(idea_id)
+            .filter(Condition::all().add_option(initiator_filter))
+            .exec(&state.conn)
+            .await?;
+        Ok(())
+    }
+    pub async fn delete_by_initiator(
+        state: &AppState,
+        idea_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<(), AppError> {
+        Self::delete(&state, idea_id, Some(idea::Column::InitiatorId.eq(user_id))).await?;
         Ok(())
     }
 }

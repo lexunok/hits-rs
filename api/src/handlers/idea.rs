@@ -1,156 +1,135 @@
-use axum::{
-    extract::{Path, State},
-    routing::{get, post, put},
-    Json, Router,
-};
-use macros::has_role;
-use sea_orm::prelude::Uuid;
-
 use crate::{
+    AppState,
     dtos::{
         common::MessageResponse,
-        idea::{
-            CreateIdeaRequest, IdeaResponse, IdeaSkillRequest, UpdateIdeaRequest,
-            UpdateIdeaStatusRequest,
-        },
+        idea::{IdeaDto, IdeaSkillRequest, IdeaStatusRequest, IdeaWithChecked, SaveIdeaRequest},
         skill::SkillDto,
     },
     error::AppError,
     services::idea::IdeaService,
     utils::security::Claims,
-    AppState,
 };
+use axum::{
+    Json, Router,
+    extract::{Path, State},
+    routing::{get, post, put},
+};
+use entity::role::Role;
+use macros::{has_any_role, has_role};
+use sea_orm::prelude::Uuid;
 
 pub fn idea_router() -> Router<AppState> {
     Router::new()
-        .route("/", get(get_all_ideas).post(create_idea))
-        .route("/draft", post(create_draft_idea))
-        .route("/my", get(get_my_ideas))
-        .route(
-            "/:id",
-            get(get_idea_by_id)
-                .delete(delete_idea)
-                .put(update_idea),
-        )
-        .route("/:id/send", put(send_idea_to_approval))
-        .route("/:id/status", put(update_status))
-        .route("/:id/skills", get(get_idea_skills))
-        .route("/skills", put(update_idea_skills))
+        .route("/{id}", get(get_idea_by_id).delete(delete_idea))
+        .route("/", get(get_all_ideas).post(save_idea))
+        .route("/initiator", get(get_all_initiator_ideas))
+        .route("/status", put(update_status))
+        .route("/send/{id}", put(send_idea_to_approval))
+        .route("/skills/{id}", get(get_idea_skills))
+        .route("/skills", post(save_idea_skills))
 }
 
 async fn get_idea_by_id(
     State(state): State<AppState>,
     claims: Claims,
     Path(id): Path<Uuid>,
-) -> Result<Json<IdeaResponse>, AppError> {
-    let idea = IdeaService::get_idea(&state, id, claims.sub).await?;
-    Ok(Json(idea))
+) -> Result<IdeaWithChecked, AppError> {
+    let idea = IdeaService::get_one(&state, id, claims.sub).await?;
+    Ok(idea)
 }
-
 async fn get_all_ideas(
     State(state): State<AppState>,
-    _: Claims,
-) -> Result<Json<Vec<IdeaResponse>>, AppError> {
-    let ideas = IdeaService::get_all(&state).await?;
-    Ok(Json(ideas))
+    claims: Claims,
+) -> Json<Vec<IdeaWithChecked>> {
+    let ideas = IdeaService::get_all(&state, claims.sub, None).await;
+    Json(ideas)
 }
-
-async fn get_my_ideas(
+async fn get_all_initiator_ideas(
     State(state): State<AppState>,
     claims: Claims,
-) -> Result<Json<Vec<IdeaResponse>>, AppError> {
-    let ideas = IdeaService::get_list_by_initiator(&state, claims.sub).await?;
-    Ok(Json(ideas))
+) -> Json<Vec<IdeaWithChecked>> {
+    let ideas = IdeaService::get_all_by_initiator(&state, claims.sub).await;
+    Json(ideas)
 }
-
-async fn create_idea(
-    State(state): State<AppState>,
-    claims: Claims,
-    Json(payload): Json<CreateIdeaRequest>,
-) -> Result<Json<IdeaResponse>, AppError> {
-    let idea = IdeaService::create(&state, payload, claims.sub).await?;
-    // a little bit of duplication, but it's better than having a separate status in the request
-    IdeaService::update_status_by_initiator(&state, idea.id, claims.sub).await?;
-    let idea = IdeaService::get_idea(&state, idea.id, claims.sub).await?;
-    Ok(Json(idea))
-}
-
-async fn create_draft_idea(
-    State(state): State<AppState>,
-    claims: Claims,
-    Json(payload): Json<CreateIdeaRequest>,
-) -> Result<Json<IdeaResponse>, AppError> {
-    let idea = IdeaService::create(&state, payload, claims.sub).await?;
-    Ok(Json(idea))
-}
-
-#[has_role(Admin)]
-async fn update_idea(
-    State(state): State<AppState>,
-    _: Claims,
-    Json(payload): Json<UpdateIdeaRequest>,
-) -> Result<Json<IdeaResponse>, AppError> {
-    let idea = IdeaService::update_by_admin(&state, payload).await?;
-    Ok(Json(idea))
-}
-
-async fn delete_idea(
-    State(state): State<AppState>,
-    claims: Claims,
-    Path(id): Path<Uuid>,
-) -> Result<Json<MessageResponse>, AppError> {
-    if claims.roles.contains(&entity::role::Role::Admin) {
-        IdeaService::delete_by_admin(&state, id).await?;
-    } else {
-        IdeaService::delete_by_initiator(&state, id, claims.sub).await?;
-    }
-
-    Ok(Json(MessageResponse {
-        message: "Идея успешно удалена".to_string(),
-    }))
-}
-
-async fn send_idea_to_approval(
-    State(state): State<AppState>,
-    claims: Claims,
-    Path(id): Path<Uuid>,
-) -> Result<Json<MessageResponse>, AppError> {
-    IdeaService::update_status_by_initiator(&state, id, claims.sub).await?;
-    Ok(Json(MessageResponse {
-        message: "Идея успешно отправлена на согласование".to_string(),
-    }))
-}
-
-#[has_role(ProjectOffice, Expert, Admin)]
-async fn update_status(
-    State(state): State<AppState>,
-    _: Claims,
-    Path(id): Path<Uuid>,
-    Json(payload): Json<UpdateIdeaStatusRequest>,
-) -> Result<Json<MessageResponse>, AppError> {
-    IdeaService::update_status(&state, id, payload).await?;
-    Ok(Json(MessageResponse {
-        message: "Статус идеи успешно обновлен".to_string(),
-    }))
-}
-
+//ПОСЛЕ РЕЙТИНГА
+// async fn get_all_not_confirmed_ideas(
+//     State(state): State<AppState>,
+//     claims: Claims,
+// ) -> Json<Vec<IdeaWithChecked>> {
+//     // Должен быть запрос на получение не подтвержденных идей
+//     let ideas = IdeaService::get_all_by_initiator(&state, claims.sub).await;
+//     Json(ideas)
+// }
 async fn get_idea_skills(
     State(state): State<AppState>,
     _: Claims,
     Path(id): Path<Uuid>,
-) -> Result<Json<Vec<SkillDto>>, AppError> {
-    let skills = IdeaService::get_idea_skills(&state, id).await?;
-    Ok(Json(skills))
+) -> Json<Vec<SkillDto>> {
+    let ideas = IdeaService::get_idea_skills(&state, id).await;
+    Json(ideas)
 }
-
-async fn update_idea_skills(
+#[has_any_role(Admin, Initiator)]
+async fn save_idea(
+    State(state): State<AppState>,
+    claims: Claims,
+    Json(payload): Json<SaveIdeaRequest>,
+) -> Result<IdeaDto, AppError> {
+    let idea = if claims.roles.contains(&Role::Admin) {
+        IdeaService::save(&state, payload, claims.sub, None).await?
+    } else {
+        IdeaService::save_by_initiator(&state, payload, claims.sub).await?
+    };
+    Ok(idea)
+}
+async fn save_idea_skills(
     State(state): State<AppState>,
     claims: Claims,
     Json(payload): Json<IdeaSkillRequest>,
-) -> Result<Json<MessageResponse>, AppError> {
-    let is_admin = claims.roles.contains(&entity::role::Role::Admin);
-    IdeaService::update_idea_skills(&state, payload, claims.sub, is_admin).await?;
-    Ok(Json(MessageResponse {
+) -> Result<MessageResponse, AppError> {
+    let initiator_id = Some(claims.sub).filter(|_| !claims.roles.contains(&Role::Admin));
+
+    IdeaService::save_skills(&state, payload, initiator_id).await?;
+    Ok(MessageResponse {
         message: "Навыки для идеи успешно обновлены".to_string(),
-    }))
+    })
+}
+#[has_role(Initiator)]
+async fn send_idea_to_approval(
+    State(state): State<AppState>,
+    claims: Claims,
+    Path(id): Path<Uuid>,
+) -> Result<MessageResponse, AppError> {
+    IdeaService::update_status_by_initiator(&state, id, claims.sub).await?;
+    Ok(MessageResponse {
+        message: "Идея успешно отправлена на согласование".to_string(),
+    })
+}
+
+#[has_any_role(ProjectOffice, Expert, Admin)]
+async fn update_status(
+    State(state): State<AppState>,
+    claims: Claims,
+    Json(payload): Json<IdeaStatusRequest>,
+) -> Result<MessageResponse, AppError> {
+    IdeaService::update_status(&state, payload).await?;
+    Ok(MessageResponse {
+        message: "Статус идеи успешно обновлен".to_string(),
+    })
+}
+
+#[has_any_role(Admin, Initiator)]
+async fn delete_idea(
+    State(state): State<AppState>,
+    claims: Claims,
+    Path(id): Path<Uuid>,
+) -> Result<MessageResponse, AppError> {
+    if claims.roles.contains(&Role::Admin) {
+        IdeaService::delete(&state, id, None).await?;
+    } else {
+        IdeaService::delete_by_initiator(&state, id, claims.sub).await?;
+    }
+
+    Ok(MessageResponse {
+        message: "Идея успешно удалена".to_string(),
+    })
 }
