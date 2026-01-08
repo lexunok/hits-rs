@@ -14,6 +14,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20251222_064711_create_groups_table::Migration),
             Box::new(m20251225_134356_create_idea_table::Migration),
             Box::new(m20251225_134357_create_idea_checked_table::Migration),
+            Box::new(m20260107_113630_create_rating_table::Migration),
         ]
     }
 }
@@ -25,3 +26,4 @@ mod m20251221_103728_create_skill_table;
 mod m20251222_064711_create_groups_table;
 mod m20251225_134356_create_idea_table;
 mod m20251225_134357_create_idea_checked_table;
+mod m20260107_113630_create_rating_table;

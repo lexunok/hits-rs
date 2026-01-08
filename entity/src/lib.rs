@@ -11,6 +11,7 @@ pub mod idea_checked;
 pub mod idea_skill;
 pub mod idea_status;
 pub mod invitation;
+pub mod rating;
 pub mod role;
 pub mod skill;
 pub mod skill_type;

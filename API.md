@@ -699,3 +699,311 @@
 - **Возможные ошибки:**
   - **`403 Forbidden`**: Нет прав администратора.
   - **`404 Not Found`**: Группа не найдена.
+
+---
+
+## Idea API (`/idea`)
+
+### Сохранение идеи
+- **`POST /idea`**
+- **Описание:** Сохраняет новую или обновляет существующую идею. Для создания новой идеи поле `id` должно быть `null`, для обновления - содержать `uuid` существующей идеи.
+- **Права доступа:** `Initiator`, `Admin`.
+- **Тело запроса (`SaveIdeaRequest`):**
+  ```json
+  {
+    "id": "uuid-of-idea-optional",
+    "name": "Название идеи",
+    "status": "New",
+    "problem": "Описание проблемы",
+    "solution": "Предлагаемое решение",
+    "result": "Ожидаемый результат",
+    "customer": "Целевая аудитория",
+    "contact_person": "Контактное лицо",
+    "description": "Подробное описание",
+    "suitability": 0,
+    "budget": 0,
+    "max_team_size": 5,
+    "min_team_size": 3
+  }
+  ```
+- **Ответ (`200 OK`, `IdeaDto`):**
+  ```json
+  {
+    "id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+    "initiator": {
+      "id": "f0e9d8c7-b6a5-4321-fedc-ba9876543210",
+      "study_group": "ИКБО-01-22",
+      "telephone": "+79991234567",
+      "roles": ["Initiator"],
+      "email": "initiator@example.com",
+      "last_name": "Иванов",
+      "first_name": "Иван",
+      "created_at": "2026-01-08T12:00:00Z"
+    },
+    "name": "Название идеи",
+    "experts": {
+      "id": "c1d2e3f4-a5b6-7890-1234-567890abcdef",
+      "name": "Группа экспертов",
+      "roles": ["Expert"],
+      "members": []
+    },
+    "project_office": {
+      "id": "b1c2d3e4-f5a6-7890-1234-567890abcdef",
+      "name": "Проектный офис",
+      "roles": ["ProjectOffice"],
+      "members": []
+    },
+    "status": "New",
+    "created_at": "2026-01-08T15:30:00Z",
+    "modified_at": "2026-01-08T15:30:00Z",
+    "is_active": true,
+    "problem": "Описание проблемы",
+    "solution": "Предлагаемое решение",
+    "result": "Ожидаемый результат",
+    "customer": "Целевая аудитория",
+    "contact_person": "Контактное лицо",
+    "description": "Подробное описание",
+    "suitability": 0,
+    "budget": 0,
+    "pre_assessment": 0.0,
+    "rating": 0.0,
+    "max_team_size": 5,
+    "min_team_size": 3
+  }
+  ```
+- **Возможные ошибки:** `401 Unauthorized`, `403 Forbidden`, `422 Unprocessable Entity`.
+
+### Получение всех идей
+- **`GET /idea`**
+- **Описание:** Возвращает список всех идей.
+- **Query параметры:** `?page=1&page_size=10`
+- **Права доступа:** Требуется аутентификация.
+- **Ответ (`200 OK`, `Vec<IdeaWithChecked>`):**
+  ```json
+  [
+    {
+      "id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+      "initiator": {
+        "id": "f0e9d8c7-b6a5-4321-fedc-ba9876543210",
+        "study_group": "ИКБО-01-22",
+        "telephone": null,
+        "roles": ["Initiator"],
+        "email": "initiator@example.com",
+        "last_name": "Иванов",
+        "first_name": "Иван",
+        "created_at": "2026-01-08T12:00:00Z"
+      },
+      "name": "Название идеи",
+      "experts": null,
+      "project_office": null,
+      "is_checked": false,
+      "status": "New",
+      "created_at": "2026-01-08T15:30:00Z",
+      "modified_at": "2026-01-08T15:30:00Z",
+      "is_active": true,
+      "problem": "Описание проблемы",
+      "solution": "Предлагаемое решение",
+      "result": "Ожидаемый результат",
+      "customer": "Целевая аудитория",
+      "contact_person": "Контактное лицо",
+      "description": "Подробное описание",
+      "suitability": 0,
+      "budget": 0,
+      "pre_assessment": 0.0,
+      "rating": 0.0,
+      "max_team_size": 5,
+      "min_team_size": 3
+    }
+  ]
+  ```
+- **Возможные ошибки:** `401 Unauthorized`.
+
+### Получение идеи по ID
+- **`GET /idea/{id}`**
+- **Описание:** Возвращает детальную информацию об идее по ID.
+- **Права доступа:** Требуется аутентификация.
+- **Ответ (`200 OK`, `IdeaWithChecked`):**
+  ```json
+  {
+      "id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+      "initiator": {
+        "id": "f0e9d8c7-b6a5-4321-fedc-ba9876543210",
+        "study_group": "ИКБО-01-22",
+        "telephone": null,
+        "roles": ["Initiator"],
+        "email": "initiator@example.com",
+        "last_name": "Иванов",
+        "first_name": "Иван",
+        "created_at": "2026-01-08T12:00:00Z"
+      },
+      "name": "Название идеи",
+      "experts": null,
+      "project_office": null,
+      "is_checked": true,
+      "status": "New",
+      "created_at": "2026-01-08T15:30:00Z",
+      "modified_at": "2026-01-08T15:30:00Z",
+      "is_active": true,
+      "problem": "Описание проблемы",
+      "solution": "Предлагаемое решение",
+      "result": "Ожидаемый результат",
+      "customer": "Целевая аудитория",
+      "contact_person": "Контактное лицо",
+      "description": "Подробное описание",
+      "suitability": 0,
+      "budget": 0,
+      "pre_assessment": 0.0,
+      "rating": 0.0,
+      "max_team_size": 5,
+      "min_team_size": 3
+  }
+  ```
+- **Возможные ошибки:** `401 Unauthorized`, `404 Not Found`.
+
+### Удаление идеи
+- **`DELETE /idea/{id}`**
+- **Описание:** Удаляет идею.
+- **Права доступа:** `Initiator` (может удалить только свою идею), `Admin`.
+- **Ответ (`200 OK`, `MessageResponse`):** `{ "message": "Идея успешно удалена" }`
+- **Возможные ошибки:** `401 Unauthorized`, `403 Forbidden`, `404 Not Found`.
+
+### Получение идей инициатора
+- **`GET /idea/initiator`**
+- **Описание:** Возвращает список всех идей, созданных текущим пользователем (инициатором).
+- **Query параметры:** `?page=1&page_size=10`
+- **Права доступа:** `Initiator`.
+- **Ответ (`200 OK`, `Vec<IdeaWithChecked>`):** (Аналогично `GET /idea`)
+- **Возможные ошибки:** `401 Unauthorized`.
+
+### Получение идей на согласовании
+- **`GET /idea/on-confirmation`**
+- **Описание:** Возвращает список всех идей, находящихся на согласовании.
+- **Query параметры:** `?page=1&page_size=10`
+- **Права доступа:** `ProjectOffice`, `Expert`, `Admin`.
+- **Ответ (`200 OK`, `Vec<IdeaWithChecked>`):** (Аналогично `GET /idea`)
+- **Возможные ошибки:** `401 Unauthorized`, `403 Forbidden`.
+
+### Обновление статуса идеи
+- **`PUT /idea/status`**
+- **Описание:** Обновляет статус идеи.
+- **Права доступа:** `ProjectOffice`, `Expert`, `Admin`.
+- **Тело запроса (`IdeaStatusRequest`):**
+  ```json
+  {
+    "id": "uuid-of-idea",
+    "status": "Approved"
+  }
+  ```
+- **Ответ (`200 OK`, `MessageResponse`):** `{ "message": "Статус идеи успешно обновлен" }`
+- **Возможные ошибки:** `401 Unauthorized`, `403 Forbidden`.
+
+### Отправка идеи на согласование
+- **`PUT /idea/send/{id}`**
+- **Описание:** Инициатор отправляет свою идею на согласование. Статус меняется на `OnApproval`.
+- **Права доступа:** `Initiator`.
+- **Ответ (`200 OK`, `MessageResponse`):** `{ "message": "Идея успешно отправлена на согласование" }`
+- **Возможные ошибки:** `401 Unauthorized`, `403 Forbidden`, `404 Not Found`.
+
+### Получение навыков идеи
+- **`GET /idea/skills/{id}`**
+- **Описание:** Возвращает список навыков, связанных с идеей.
+- **Права доступа:** Требуется аутентификация.
+- **Ответ (`200 OK`, `Vec<SkillDto>`):**
+  ```json
+  [
+    {
+      "id": "skill-uuid-1",
+      "name": "Rust",
+      "type": "Backend",
+      "confirmed": true
+    }
+  ]
+  ```
+- **Возможные ошибки:** `401 Unauthorized`.
+
+### Сохранение навыков для идеи
+- **`POST /idea/skills`**
+- **Описание:** Обновляет список навыков для указанной идеи.
+- **Права доступа:** `Initiator`, `Admin`.
+- **Тело запроса (`IdeaSkillRequest`):**
+  ```json
+  {
+    "id": "uuid-of-idea",
+    "skills": [
+      { "id": "skill-uuid-1", "name": "Rust", "type": "Backend", "confirmed": true },
+      { "id": "skill-uuid-2", "name": "React", "type": "Frontend", "confirmed": true }
+    ]
+  }
+  ```
+- **Ответ (`200 OK`, `MessageResponse`):** `{ "message": "Навыки для идеи успешно обновлены" }`
+- **Возможные ошибки:** `401 Unauthorized`, `403 Forbidden`.
+
+---
+
+## Rating API (`/rating`)
+
+### Получение всех рейтингов для идеи
+- **`GET /rating/{idea_id}`**
+- **Описание:** Возвращает список всех оценок (рейтингов) для указанной идеи.
+- **Права доступа:** Требуется аутентификация.
+- **Ответ (`200 OK`, `Vec<RatingDto>`):**
+  ```json
+  [
+    {
+      "id": "rating-uuid-1",
+      "expert": {
+        "id": "d1e2f3a4-b5c6-7890-1234-567890abcdef",
+        "study_group": null,
+        "telephone": null,
+        "roles": ["Expert"],
+        "email": "expert@example.com",
+        "last_name": "Петров",
+        "first_name": "Петр",
+        "created_at": "2026-01-07T10:00:00Z"
+      },
+      "idea_id": "a1b2c3d4-e5f6-7890-1234-567890abcdef",
+      "market_value": 5,
+      "originality": 4,
+      "technical_realizability": 3,
+      "suitability": 5,
+      "budget": 2,
+      "rating": 3.8,
+      "is_confirmed": false
+    }
+  ]
+  ```
+- **Возможные ошибки:** `401 Unauthorized`.
+
+### Получение рейтингов эксперта для идеи
+- **`GET /rating/expert/{idea_id}`**
+- **Описание:** Возвращает оценки, поставленные текущим аутентифицированным экспертом для указанной идеи.
+- **Права доступа:** `Expert`.
+- **Ответ (`200 OK`, `Vec<RatingDto>`):** (Аналогично `GET /rating/{idea_id}`)
+- **Возможные ошибки:** `401 Unauthorized`, `403 Forbidden`.
+
+### Сохранение рейтинга
+- **`PUT /rating/save`**
+- **Описание:** Сохраняет или обновляет оценку эксперта для идеи.
+- **Права доступа:** `ProjectOffice`, `Expert`, `Admin`.
+- **Тело запроса (`UpdateRatingRequest`):**
+  ```json
+  {
+    "id": "rating-uuid-to-update",
+    "market_value": 5,
+    "originality": 4,
+    "technical_realizability": 3,
+    "suitability": 5,
+    "budget": 2,
+    "rating": 3.8
+  }
+  ```
+- **Ответ (`200 OK`, `MessageResponse`):** `{ "message": "Рейтинг успешно сохранен" }`
+- **Возможные ошибки:** `401 Unauthorized`, `403 Forbidden`.
+
+### Подтверждение рейтинга
+- **`PUT /rating/confirm`**
+- **Описание:** Подтверждает оценку эксперта. После подтверждения оценка не может быть изменена.
+- **Права доступа:** `ProjectOffice`, `Expert`, `Admin`.
+- **Тело запроса (`UpdateRatingRequest`):** (Аналогично `PUT /rating/save`)
+- **Ответ (`200 OK`, `MessageResponse`):** `{ "message": "Рейтинг успешно подтвержден" }`
+- **Возможные ошибки:** `401 Unauthorized`, `403 Forbidden`.

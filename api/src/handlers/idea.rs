@@ -1,7 +1,7 @@
 use crate::{
     AppState,
     dtos::{
-        common::MessageResponse,
+        common::{MessageResponse, PaginationParams},
         idea::{IdeaDto, IdeaSkillRequest, IdeaStatusRequest, IdeaWithChecked, SaveIdeaRequest},
         skill::SkillDto,
     },
@@ -11,7 +11,7 @@ use crate::{
 };
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     routing::{get, post, put},
 };
 use entity::role::Role;
@@ -23,6 +23,7 @@ pub fn idea_router() -> Router<AppState> {
         .route("/{id}", get(get_idea_by_id).delete(delete_idea))
         .route("/", get(get_all_ideas).post(save_idea))
         .route("/initiator", get(get_all_initiator_ideas))
+        .route("/on-confirmation", get(get_all_on_confirmation_ideas))
         .route("/status", put(update_status))
         .route("/send/{id}", put(send_idea_to_approval))
         .route("/skills/{id}", get(get_idea_skills))
@@ -40,26 +41,27 @@ async fn get_idea_by_id(
 async fn get_all_ideas(
     State(state): State<AppState>,
     claims: Claims,
+    Query(pagination): Query<PaginationParams>,
 ) -> Json<Vec<IdeaWithChecked>> {
-    let ideas = IdeaService::get_all(&state, claims.sub, None).await;
+    let ideas = IdeaService::get_all(&state, claims.sub, None, pagination).await;
     Json(ideas)
 }
 async fn get_all_initiator_ideas(
     State(state): State<AppState>,
     claims: Claims,
+    Query(pagination): Query<PaginationParams>,
 ) -> Json<Vec<IdeaWithChecked>> {
-    let ideas = IdeaService::get_all_by_initiator(&state, claims.sub).await;
+    let ideas = IdeaService::get_all_by_initiator(&state, claims.sub, pagination).await;
     Json(ideas)
 }
-//ПОСЛЕ РЕЙТИНГА
-// async fn get_all_not_confirmed_ideas(
-//     State(state): State<AppState>,
-//     claims: Claims,
-// ) -> Json<Vec<IdeaWithChecked>> {
-//     // Должен быть запрос на получение не подтвержденных идей
-//     let ideas = IdeaService::get_all_by_initiator(&state, claims.sub).await;
-//     Json(ideas)
-// }
+async fn get_all_on_confirmation_ideas(
+    State(state): State<AppState>,
+    claims: Claims,
+    Query(pagination): Query<PaginationParams>,
+) -> Json<Vec<IdeaWithChecked>> {
+    let ideas = IdeaService::get_all_on_confirmation(&state, claims.sub, pagination).await;
+    Json(ideas)
+}
 async fn get_idea_skills(
     State(state): State<AppState>,
     _: Claims,

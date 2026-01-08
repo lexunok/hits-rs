@@ -1,6 +1,7 @@
 use crate::{
     AppState,
     dtos::{
+        common::PaginationParams,
         group::GroupDto,
         idea::{
             IdeaDto, IdeaQueryResult, IdeaSkillRequest, IdeaStatusRequest, IdeaWithChecked,
@@ -12,16 +13,15 @@ use crate::{
 };
 use chrono::Local;
 use entity::{
-    group,
-    idea::{self, Entity as Idea},
-    idea_checked, idea_skill,
+    group, group_member, idea, idea_checked, idea_skill,
     idea_status::IdeaStatus,
-    prelude::{Group, IdeaSkill},
-    skill, users,
+    prelude::{Group, GroupMember, Idea, IdeaSkill, Rating},
+    rating, skill, users,
 };
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, ExprTrait, IntoActiveModel, QueryFilter,
-    QuerySelect, RelationTrait, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, ExprTrait, IntoActiveModel, Iterable,
+    JoinType, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set,
+    TransactionTrait,
     prelude::Uuid,
     sea_query::{Expr, Query},
 };
@@ -36,13 +36,9 @@ impl IdeaService {
         user_id: Uuid,
     ) -> Result<IdeaWithChecked, AppError> {
         let mut idea: IdeaQueryResult = Idea::find_by_id(idea_id)
+            .join_as(JoinType::LeftJoin, idea::Relation::Experts.def(), "experts")
             .join_as(
-                sea_orm::JoinType::LeftJoin,
-                idea::Relation::Experts.def(),
-                "experts",
-            )
-            .join_as(
-                sea_orm::JoinType::LeftJoin,
+                JoinType::LeftJoin,
                 idea::Relation::ProjectOffice.def(),
                 "project_office",
             )
@@ -95,6 +91,7 @@ impl IdeaService {
         state: &AppState,
         user_id: Uuid,
         initiator_filter: Option<Expr>,
+        pagination: PaginationParams,
     ) -> Vec<IdeaWithChecked> {
         Idea::find()
             .left_join(users::Entity)
@@ -116,8 +113,10 @@ impl IdeaService {
                 "is_checked",
             )
             .filter(Condition::all().add_option(initiator_filter))
+            .order_by_desc(idea::Column::ModifiedAt)
             .into_model::<IdeaQueryResult>()
-            .all(&state.conn)
+            .paginate(&state.conn, pagination.page_size)
+            .fetch_page(pagination.page)
             .await
             .unwrap_or_default()
             .into_iter()
@@ -125,8 +124,56 @@ impl IdeaService {
             .collect()
     }
 
-    pub async fn get_all_by_initiator(state: &AppState, user_id: Uuid) -> Vec<IdeaWithChecked> {
-        Self::get_all(state, user_id, Some(idea::Column::InitiatorId.eq(user_id))).await
+    pub async fn get_all_by_initiator(
+        state: &AppState,
+        user_id: Uuid,
+        pagination: PaginationParams,
+    ) -> Vec<IdeaWithChecked> {
+        Self::get_all(
+            state,
+            user_id,
+            Some(idea::Column::InitiatorId.eq(user_id)),
+            pagination,
+        )
+        .await
+    }
+    pub async fn get_all_on_confirmation(
+        state: &AppState,
+        user_id: Uuid,
+        pagination: PaginationParams,
+    ) -> Vec<IdeaWithChecked> {
+        Rating::find()
+            .filter(rating::Column::ExpertId.eq(user_id))
+            .filter(rating::Column::IsConfirmed.eq(false))
+            .left_join(idea::Entity)
+            .join(JoinType::LeftJoin, idea::Relation::Users.def())
+            .columns(idea::Column::iter())
+            .column_as(users::Column::Email, "initiator_email")
+            .column_as(users::Column::FirstName, "initiator_first_name")
+            .column_as(users::Column::LastName, "initiator_last_name")
+            .column_as(
+                Expr::exists(
+                    Query::select()
+                        .expr(Expr::val(1))
+                        .from(idea_checked::Entity)
+                        .and_where(Expr::col(idea_checked::Column::UserId).eq(user_id))
+                        .and_where(
+                            Expr::col(idea_checked::Column::IdeaId)
+                                .equals((idea::Entity, idea::Column::Id)),
+                        )
+                        .to_owned(),
+                ),
+                "is_checked",
+            )
+            .order_by_desc(idea::Column::ModifiedAt)
+            .into_model::<IdeaQueryResult>()
+            .paginate(&state.conn, pagination.page_size)
+            .fetch_page(pagination.page)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(IdeaWithChecked::from)
+            .collect()
     }
     pub async fn get_idea_skills(state: &AppState, id: Uuid) -> Vec<SkillDto> {
         IdeaSkill::find()
@@ -214,21 +261,36 @@ impl IdeaService {
                 .ok_or(AppError::Custom(
                     "Не существует группы проектного офиса".to_string(),
                 ))?;
+
             idea.group_expert_id = Set(experts.id);
             idea.group_project_office_id = Set(project_office.id);
             idea.initiator_id = Set(initiator_id);
 
-            idea_id = idea.insert(&state.conn).await?.id;
+            let txn = state.conn.begin().await?;
 
-            // Нахожу список эскпертов в группе и для каждого эскперта делаю рейтинг запись
-            // "INSERT INTO rating (expert_id, is_confirmed, idea_id) VALUES ('%s', FALSE, '%s');",
-            // u.getUserId(), savedIdea.getId()
+            idea_id = idea.insert(&txn).await?.id;
+
+            let ratings: Vec<rating::ActiveModel> = GroupMember::find()
+                .filter(group_member::Column::GroupId.eq(experts.id))
+                .all(&state.conn)
+                .await?
+                .iter()
+                .map(|member| rating::ActiveModel {
+                    expert_id: Set(member.user_id),
+                    idea_id: Set(idea_id),
+                    ..Default::default()
+                })
+                .collect();
+
+            Rating::insert_many(ratings).exec(&txn).await?;
+
+            txn.commit().await?;
         }
 
         let response: IdeaDto = Idea::find_by_id(idea_id)
-            .join(sea_orm::JoinType::LeftJoin, idea::Relation::Experts.def())
+            .join(JoinType::LeftJoin, idea::Relation::Experts.def())
             .join_as(
-                sea_orm::JoinType::LeftJoin,
+                JoinType::LeftJoin,
                 idea::Relation::ProjectOffice.def(),
                 "project_office",
             )

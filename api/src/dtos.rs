@@ -5,6 +5,7 @@ pub mod group;
 pub mod idea;
 pub mod invitation;
 pub mod profile;
+pub mod rating;
 pub mod skill;
 pub mod smtp;
 pub mod user;
