@@ -3,6 +3,7 @@ pub mod company;
 pub mod group;
 pub mod idea;
 pub mod invitation;
+pub mod market;
 pub mod profile;
 pub mod rating;
 pub mod skill;

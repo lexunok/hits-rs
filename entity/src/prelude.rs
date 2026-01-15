@@ -8,6 +8,7 @@ pub use super::idea::Entity as Idea;
 pub use super::idea_checked::Entity as IdeaChecked;
 pub use super::idea_skill::Entity as IdeaSkill;
 pub use super::invitation::Entity as Invitation;
+pub use super::market::Entity as Market;
 pub use super::rating::Entity as Rating;
 pub use super::role::Role;
 pub use super::skill::Entity as Skill;
