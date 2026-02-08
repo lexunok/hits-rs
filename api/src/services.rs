@@ -7,4 +7,5 @@ pub mod market;
 pub mod profile;
 pub mod rating;
 pub mod skill;
+pub mod team;
 pub mod user;

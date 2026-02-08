@@ -20,12 +20,22 @@ pub struct Model {
     pub first_name: String,
     pub created_at: DateTimeWithTimeZone,
     pub is_deleted: bool,
+    #[sea_orm(has_many)]
+    pub idea_market_advertisements: HasMany<super::idea_market_advertisement::Entity>,
+    #[sea_orm(has_many)]
+    pub ratings: HasMany<super::rating::Entity>,
     #[sea_orm(has_many, via = "company_member")]
     pub companies: HasMany<super::company::Entity>,
     #[sea_orm(has_many, via = "group_member")]
     pub groups: HasMany<super::group::Entity>,
     #[sea_orm(has_many, via = "idea_checked")]
     pub ideas: HasMany<super::idea::Entity>,
+    #[sea_orm(has_many, via = "favorite_idea")]
+    pub idea_markets: HasMany<super::idea_market::Entity>,
+    #[sea_orm(has_many, via = "user_skill")]
+    pub skills: HasMany<super::skill::Entity>,
+    #[sea_orm(has_many, via = "team_member")]
+    pub teams: HasMany<super::team::Entity>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}

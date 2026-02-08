@@ -2,15 +2,23 @@
 
 pub use super::company::Entity as Company;
 pub use super::company_member::Entity as CompanyMember;
+pub use super::favorite_idea::Entity as FavoriteIdea;
 pub use super::group::Entity as Group;
 pub use super::group_member::Entity as GroupMember;
 pub use super::idea::Entity as Idea;
 pub use super::idea_checked::Entity as IdeaChecked;
+pub use super::idea_market::Entity as IdeaMarket;
+pub use super::idea_market_advertisement::Entity as IdeaMarketAdvertisement;
 pub use super::idea_skill::Entity as IdeaSkill;
 pub use super::invitation::Entity as Invitation;
 pub use super::market::Entity as Market;
+pub use super::project::Entity as Project;
 pub use super::rating::Entity as Rating;
 pub use super::role::Role;
 pub use super::skill::Entity as Skill;
+pub use super::team::Entity as Team;
+pub use super::team_market_request::Entity as TeamMarketRequest;
+pub use super::team_member::Entity as TeamMember;
+pub use super::user_skill::Entity as UserSkill;
 pub use super::users::Entity as Users;
 pub use super::verification_code::Entity as VerificationCode;

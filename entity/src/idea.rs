@@ -46,6 +46,12 @@ pub struct Model {
         to = "id"
     )]
     pub project_office: HasOne<super::group::Entity>,
+    #[sea_orm(has_many)]
+    pub idea_markets: HasMany<super::idea_market::Entity>,
+    #[sea_orm(has_one)]
+    pub project: HasOne<super::project::Entity>,
+    #[sea_orm(has_many)]
+    pub ratings: HasMany<super::rating::Entity>,
     #[sea_orm(has_many, via = "idea_skill")]
     pub skills: HasMany<super::skill::Entity>,
     #[sea_orm(belongs_to, from = "initiator_id", to = "id")]

@@ -16,6 +16,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20251225_134357_create_idea_checked_table::Migration),
             Box::new(m20260107_113630_create_rating_table::Migration),
             Box::new(m20260115_123356_create_market_table::Migration),
+            Box::new(m20260208_190000_create_idea_market_related_tables::Migration),
         ]
     }
 }
@@ -29,3 +30,4 @@ mod m20251225_134356_create_idea_table;
 mod m20251225_134357_create_idea_checked_table;
 mod m20260107_113630_create_rating_table;
 mod m20260115_123356_create_market_table;
+mod m20260208_190000_create_idea_market_related_tables;

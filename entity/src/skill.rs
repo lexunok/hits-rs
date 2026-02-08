@@ -19,35 +19,10 @@ pub struct Model {
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: Option<DateTimeWithTimeZone>,
     pub deleted_at: Option<DateTimeWithTimeZone>,
-    #[sea_orm(
-        belongs_to,
-        relation_enum = "Users3",
-        from = "creator_id",
-        to = "id",
-        on_update = "Cascade",
-        on_delete = "Cascade"
-    )]
-    pub users_3: HasOne<super::users::Entity>,
-    #[sea_orm(
-        belongs_to,
-        relation_enum = "Users2",
-        from = "deleter_id",
-        to = "id",
-        on_update = "Cascade",
-        on_delete = "SetNull"
-    )]
-    pub users_2: HasOne<super::users::Entity>,
-    #[sea_orm(
-        belongs_to,
-        relation_enum = "Users1",
-        from = "updater_id",
-        to = "id",
-        on_update = "Cascade",
-        on_delete = "SetNull"
-    )]
-    pub users_1: HasOne<super::users::Entity>,
     #[sea_orm(has_many, via = "idea_skill")]
     pub ideas: HasMany<super::idea::Entity>,
+    #[sea_orm(has_many, via = "user_skill")]
+    pub users: HasMany<super::users::Entity>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}
