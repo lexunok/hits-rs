@@ -29,7 +29,7 @@ tower-http = { version = "0.6.0", features = ["cors", "fs"] }
 image = "0.25.1"
 
 [dependencies.sea-orm]
-version = "2.0.0-rc.20"
+version = "2.0.0-rc.32"
 features = [
     "sqlx-postgres",
     "runtime-tokio-native-tls",

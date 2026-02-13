@@ -10,23 +10,28 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: Uuid,
     pub name: String,
-    pub description: Option<String>,
+    pub description: String,
     pub created_at: DateTimeWithTimeZone,
     pub is_closed: bool,
     pub owner_id: Uuid,
     pub leader_id: Option<Uuid>,
     pub has_active_project: bool,
+    pub is_deleted: bool,
+    
     #[sea_orm(has_many)]
     pub idea_markets: HasMany<super::idea_market::Entity>,
     #[sea_orm(has_one)]
     pub project: HasOne<super::project::Entity>,
     #[sea_orm(has_many)]
     pub team_market_requests: HasMany<super::team_market_request::Entity>,
+
+    #[sea_orm(has_many, via = "team_wanted_skill")]
+    pub wanted_skills: HasMany<super::skill::Entity>,
     #[sea_orm(belongs_to, relation_enum = "Leader", from = "leader_id", to = "id")]
-    pub experts: HasOne<super::users::Entity>,
+    pub leader: HasOne<super::users::Entity>,
     #[sea_orm(belongs_to, relation_enum = "Owner", from = "owner_id", to = "id")]
     pub owner: HasOne<super::users::Entity>,
-    #[sea_orm(has_many, via = "team_member")]
+    #[sea_orm(has_many, via = "team_member", relation_enum = "Members")]
     pub members: HasMany<super::users::Entity>,
 }
 

@@ -41,7 +41,6 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Skill::DeletedAt).timestamp_with_time_zone())
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk-skill-creator")
                             .from(Skill::Table, Skill::CreatorId)
                             .to(Users::Table, Users::Id)
                             .on_delete(ForeignKeyAction::Cascade)
@@ -49,7 +48,6 @@ impl MigrationTrait for Migration {
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk-skill-updater")
                             .from(Skill::Table, Skill::UpdaterId)
                             .to(Users::Table, Users::Id)
                             .on_delete(ForeignKeyAction::SetNull)
@@ -57,7 +55,6 @@ impl MigrationTrait for Migration {
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk-skill-deleter")
                             .from(Skill::Table, Skill::DeleterId)
                             .to(Users::Table, Users::Id)
                             .on_delete(ForeignKeyAction::SetNull)

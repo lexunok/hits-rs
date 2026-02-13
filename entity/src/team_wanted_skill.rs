@@ -5,15 +5,12 @@ use serde::{Deserialize, Serialize};
 
 #[sea_orm::model]
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "team_member")]
+#[sea_orm(table_name = "team_wanted_skill")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub team_id: Uuid,
     #[sea_orm(primary_key, auto_increment = false)]
-    pub user_id: Uuid,
-    pub is_active: Uuid,
-    pub join_date: DateTimeWithTimeZone,
-    pub finish_date: Option<DateTimeWithTimeZone>,
+    pub skill_id: Uuid,
     #[sea_orm(
         belongs_to,
         from = "team_id",
@@ -24,12 +21,12 @@ pub struct Model {
     pub team: HasOne<super::team::Entity>,
     #[sea_orm(
         belongs_to,
-        from = "user_id",
+        from = "skill_id",
         to = "id",
         on_update = "Cascade",
         on_delete = "Cascade"
     )]
-    pub members: HasOne<super::users::Entity>,
+    pub skill: HasOne<super::skill::Entity>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}

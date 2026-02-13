@@ -25,7 +25,7 @@ impl MigrationTrait for Migration {
                             .default(Expr::cust("gen_random_uuid()")),
                     )
                     .col(ColumnDef::new(Team::Name).string().not_null())
-                    .col(ColumnDef::new(Team::Description).string())
+                    .col(ColumnDef::new(Team::Description).string().not_null())
                     .col(
                         ColumnDef::new(Team::CreatedAt)
                             .timestamp_with_time_zone()
@@ -40,9 +40,14 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .default(false),
                     )
+                    .col(
+                        ColumnDef::new(Team::IsDeleted)
+                            .boolean()
+                            .not_null()
+                            .default(false),
+                    )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk-team-owner-id")
                             .from(Team::Table, Team::OwnerId)
                             .to(Users::Table, Users::Id)
                             .on_delete(ForeignKeyAction::Cascade)
@@ -50,7 +55,6 @@ impl MigrationTrait for Migration {
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk-team-leader-id")
                             .from(Team::Table, Team::LeaderId)
                             .to(Users::Table, Users::Id)
                             .on_delete(ForeignKeyAction::SetNull)
@@ -69,6 +73,12 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(TeamMember::TeamId).uuid().not_null())
                     .col(ColumnDef::new(TeamMember::UserId).uuid().not_null())
                     .col(
+                        ColumnDef::new(TeamMember::IsActive)
+                            .boolean()
+                            .not_null()
+                            .default(true),
+                    )
+                    .col(
                         ColumnDef::new(TeamMember::JoinDate)
                             .timestamp_with_time_zone()
                             .not_null()
@@ -82,7 +92,6 @@ impl MigrationTrait for Migration {
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk-teammember-team-id")
                             .from(TeamMember::Table, TeamMember::TeamId)
                             .to(Team::Table, Team::Id)
                             .on_delete(ForeignKeyAction::Cascade)
@@ -90,9 +99,39 @@ impl MigrationTrait for Migration {
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk-teammember-user-id")
                             .from(TeamMember::Table, TeamMember::UserId)
                             .to(Users::Table, Users::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        // TeamWantedSkill table
+        manager
+            .create_table(
+                Table::create()
+                    .table(TeamWantedSkill::Table)
+                    .if_not_exists()
+                    .col(ColumnDef::new(TeamWantedSkill::TeamId).uuid().not_null())
+                    .col(ColumnDef::new(TeamWantedSkill::SkillId).uuid().not_null())
+                    .primary_key(
+                        Index::create()
+                            .col(TeamWantedSkill::TeamId)
+                            .col(TeamWantedSkill::SkillId),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(TeamWantedSkill::Table, TeamWantedSkill::TeamId)
+                            .to(Team::Table, Team::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(TeamWantedSkill::Table, TeamWantedSkill::SkillId)
+                            .to(Skill::Table, Skill::Id)
                             .on_delete(ForeignKeyAction::Cascade)
                             .on_update(ForeignKeyAction::Cascade),
                     )
@@ -115,7 +154,6 @@ impl MigrationTrait for Migration {
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk-userskill-user-id")
                             .from(UserSkill::Table, UserSkill::UserId)
                             .to(Users::Table, Users::Id)
                             .on_delete(ForeignKeyAction::Cascade)
@@ -123,7 +161,6 @@ impl MigrationTrait for Migration {
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk-userskill-skill-id")
                             .from(UserSkill::Table, UserSkill::SkillId)
                             .to(Skill::Table, Skill::Id)
                             .on_delete(ForeignKeyAction::Cascade)
@@ -167,7 +204,6 @@ impl MigrationTrait for Migration {
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk-project-idea-id")
                             .from(Project::Table, Project::IdeaId)
                             .to(Idea::Table, Idea::Id)
                             .on_delete(ForeignKeyAction::Cascade)
@@ -175,7 +211,6 @@ impl MigrationTrait for Migration {
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk-project-team-id")
                             .from(Project::Table, Project::TeamId)
                             .to(Team::Table, Team::Id)
                             .on_delete(ForeignKeyAction::Cascade)
@@ -210,7 +245,6 @@ impl MigrationTrait for Migration {
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk-ideamarket-idea-id")
                             .from(IdeaMarket::Table, IdeaMarket::IdeaId)
                             .to(Idea::Table, Idea::Id)
                             .on_delete(ForeignKeyAction::Cascade)
@@ -218,7 +252,6 @@ impl MigrationTrait for Migration {
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk-ideamarket-market-id")
                             .from(IdeaMarket::Table, IdeaMarket::MarketId)
                             .to(Market::Table, Market::Id)
                             .on_delete(ForeignKeyAction::Cascade)
@@ -226,7 +259,6 @@ impl MigrationTrait for Migration {
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk-ideamarket-team-id")
                             .from(IdeaMarket::Table, IdeaMarket::TeamId)
                             .to(Team::Table, Team::Id)
                             .on_delete(ForeignKeyAction::SetNull)
@@ -251,7 +283,6 @@ impl MigrationTrait for Migration {
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk-favoriteidea-user-id")
                             .from(FavoriteIdea::Table, FavoriteIdea::UserId)
                             .to(Users::Table, Users::Id)
                             .on_delete(ForeignKeyAction::Cascade)
@@ -259,7 +290,6 @@ impl MigrationTrait for Migration {
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk-favoriteidea-ideamarket-id")
                             .from(FavoriteIdea::Table, FavoriteIdea::IdeaMarketId)
                             .to(IdeaMarket::Table, IdeaMarket::Id)
                             .on_delete(ForeignKeyAction::Cascade)
@@ -302,7 +332,6 @@ impl MigrationTrait for Migration {
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk-teammarketrequest-team-id")
                             .from(TeamMarketRequest::Table, TeamMarketRequest::TeamId)
                             .to(Team::Table, Team::Id)
                             .on_delete(ForeignKeyAction::Cascade)
@@ -310,7 +339,6 @@ impl MigrationTrait for Migration {
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk-teammarketrequest-ideamarket-id")
                             .from(TeamMarketRequest::Table, TeamMarketRequest::IdeaMarketId)
                             .to(IdeaMarket::Table, IdeaMarket::Id)
                             .on_delete(ForeignKeyAction::Cascade)
@@ -361,7 +389,6 @@ impl MigrationTrait for Migration {
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk-ideamarketadvertisement-ideamarket-id")
                             .from(
                                 IdeaMarketAdvertisement::Table,
                                 IdeaMarketAdvertisement::IdeaMarketId,
@@ -372,7 +399,6 @@ impl MigrationTrait for Migration {
                     )
                     .foreign_key(
                         ForeignKey::create()
-                            .name("fk-ideamarketadvertisement-sender-id")
                             .from(
                                 IdeaMarketAdvertisement::Table,
                                 IdeaMarketAdvertisement::SenderId,
@@ -399,6 +425,7 @@ enum Team {
     OwnerId,
     LeaderId,
     HasActiveProject,
+    IsDeleted,
 }
 
 #[derive(DeriveIden)]
@@ -406,10 +433,16 @@ enum TeamMember {
     Table,
     TeamId,
     UserId,
+    IsActive,
     JoinDate,
     FinishDate,
 }
-
+#[derive(DeriveIden)]
+enum TeamWantedSkill {
+    Table,
+    TeamId,
+    SkillId,
+}
 #[derive(DeriveIden)]
 enum UserSkill {
     Table,
