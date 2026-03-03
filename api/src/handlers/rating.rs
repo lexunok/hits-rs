@@ -31,6 +31,7 @@ async fn get_all_ratings(
     let ratings = RatingService::get_all(&state, idea_id, None).await;
     Json(ratings)
 }
+// ненужный
 async fn get_all_ratings_by_expert(
     State(state): State<AppState>,
     claims: Claims,
