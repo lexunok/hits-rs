@@ -46,6 +46,12 @@ impl MigrationTrait for Migration {
                             .not_null()
                             .default(false),
                     )
+                    .col(
+                        ColumnDef::new(Team::IsClosed)
+                            .boolean()
+                            .not_null()
+                            .default(false),
+                    )
                     .foreign_key(
                         ForeignKey::create()
                             .from(Team::Table, Team::OwnerId)
@@ -416,10 +422,11 @@ impl MigrationTrait for Migration {
 }
 
 #[derive(DeriveIden)]
-enum Team {
+pub enum Team {
     Table,
     Id,
     Name,
+    IsClosed,
     Description,
     CreatedAt,
     OwnerId,

@@ -2,8 +2,7 @@ use crate::{
     AppState,
     dtos::{
         common::{MessageResponse, PaginationParams},
-        profile::UserDto,
-        user::{UserCreatePayload, UserUpdatePayload},
+        user::{UserCreatePayload, UserDto, UserUpdatePayload},
     },
     error::AppError,
     services::user::UserService,
@@ -21,6 +20,8 @@ pub fn user_router() -> Router<AppState> {
     Router::new()
         .route("/", get(get_user).post(create_user).put(update_user))
         .route("/all", get(get_all_users))
+        .route("/all/with-skills", get(get_all_users_with_skills))
+        .route("/all/in-team", get(get_all_users_in_teams))
         .route("/{id}", get(get_user).delete(delete_user))
         .route("/restore/{email}", put(restore_user))
 }
@@ -31,6 +32,12 @@ async fn get_all_users(
     Query(pagination): Query<PaginationParams>,
 ) -> Json<Vec<UserDto>> {
     Json(UserService::get_all(&state, pagination).await)
+}
+async fn get_all_users_in_teams(State(state): State<AppState>, _: Claims) -> Json<Vec<UserDto>> {
+    Json(UserService::get_all_in_teams(&state).await)
+}
+async fn get_all_users_with_skills(State(state): State<AppState>, _: Claims) -> Json<Vec<UserDto>> {
+    Json(UserService::get_all_with_skills(&state).await)
 }
 async fn get_user(
     State(state): State<AppState>,

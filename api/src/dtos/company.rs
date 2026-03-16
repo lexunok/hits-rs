@@ -1,4 +1,4 @@
-use super::profile::UserDto;
+use super::user::UserDto;
 use macros::IntoDataResponse;
 use sea_orm::{DerivePartialModel, prelude::Uuid};
 use serde::{Deserialize, Serialize};

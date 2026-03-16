@@ -17,22 +17,16 @@ pub struct Model {
     pub leader_id: Option<Uuid>,
     pub has_active_project: bool,
     pub is_deleted: bool,
-    
-    #[sea_orm(has_many)]
-    pub idea_markets: HasMany<super::idea_market::Entity>,
-    #[sea_orm(has_one)]
-    pub project: HasOne<super::project::Entity>,
-    #[sea_orm(has_many)]
-    pub team_market_requests: HasMany<super::team_market_request::Entity>,
 
-    #[sea_orm(has_many, via = "team_wanted_skill")]
-    pub wanted_skills: HasMany<super::skill::Entity>,
-    #[sea_orm(belongs_to, relation_enum = "Leader", from = "leader_id", to = "id")]
+    #[sea_orm(has_many)]
+    pub wanted_skills: HasMany<super::team_wanted_skill::Entity>,
+    #[sea_orm(has_many)]
+    pub team_members: HasMany<super::team_member::Entity>,
+    #[sea_orm(belongs_to, relation_enum = "TeamLeader", from = "LeaderId", to = "Id")]
     pub leader: HasOne<super::users::Entity>,
-    #[sea_orm(belongs_to, relation_enum = "Owner", from = "owner_id", to = "id")]
+    #[sea_orm(belongs_to, relation_enum = "TeamOwner", from = "OwnerId", to = "Id")]
     pub owner: HasOne<super::users::Entity>,
-    #[sea_orm(has_many, via = "team_member", relation_enum = "Members")]
+    #[sea_orm(has_many, via = "team_member")]
     pub members: HasMany<super::users::Entity>,
 }
-
 impl ActiveModelBehavior for ActiveModel {}

@@ -2,7 +2,7 @@ use crate::{
     AppState,
     dtos::{
         company::{CompanyResponse, CreateCompanyRequest, UpdateCompanyRequest},
-        profile::UserDto,
+        user::UserDto,
     },
     error::AppError,
 };

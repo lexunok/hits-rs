@@ -38,13 +38,38 @@ impl RatingService {
 
     pub async fn update(state: &AppState, payload: UpdateRatingRequest) -> Result<(), AppError> {
         payload.validate()?;
-        payload.into_active_model().update(&state.conn).await?;
+        let avg = [
+            payload.budget,
+            payload.market_value,
+            payload.originality,
+            payload.suitability,
+            payload.technical_realizability,
+        ]
+        .into_iter()
+        .map(|v| v as f64)
+        .sum::<f64>()
+            / 5.0;
+        let mut payload = payload.into_active_model();
+        payload.rating = Set(avg);
+        payload.update(&state.conn).await?;
         Ok(())
     }
 
     pub async fn confirm(state: &AppState, payload: UpdateRatingRequest) -> Result<(), AppError> {
         payload.validate()?;
+        let avg = [
+            payload.budget,
+            payload.market_value,
+            payload.originality,
+            payload.suitability,
+            payload.technical_realizability,
+        ]
+        .into_iter()
+        .map(|v| v as f64)
+        .sum::<f64>()
+            / 5.0;
         let mut rating = payload.into_active_model();
+        rating.rating = Set(avg);
         rating.is_confirmed = Set(true);
 
         let txn = state.conn.begin().await?;

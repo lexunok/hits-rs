@@ -27,9 +27,10 @@ thiserror = "2.0.17"
 validator = { version = "0.20.0", features = ["derive"] }
 tower-http = { version = "0.6.0", features = ["cors", "fs"] }
 image = "0.25.1"
+itertools = "0.14.0"
 
 [dependencies.sea-orm]
-version = "2.0.0-rc.32"
+version = "2.0.0-rc.37"
 features = [
     "sqlx-postgres",
     "runtime-tokio-native-tls",

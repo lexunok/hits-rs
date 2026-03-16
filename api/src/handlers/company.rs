@@ -3,7 +3,7 @@ use crate::{
     dtos::{
         common::MessageResponse,
         company::{CompanyResponse, CreateCompanyRequest, UpdateCompanyRequest},
-        profile::UserDto,
+        user::UserDto,
     },
     error::AppError,
     services::company::CompanyService,

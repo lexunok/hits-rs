@@ -79,7 +79,7 @@ impl MarketService {
                 start_date: market.start_date,
                 status: market.status,
             });
-        } else if payload.status == MarketStatus::Done && is_admin {
+        } else if payload.status == MarketStatus::Done {
             //TODO: СДЕЛАТЬ ЧЕТО ОБНОВЛЕНИЕ ИДЕЙ, КОМАНД, ИДЕЯ МАРКЕТА И ТД
             //ЕЩЕ ПО РАСПИСАНИЮ ЗАПРОСЫ ЕСТЬ С ПОХОЖЕЙ ЛОГИКОЙ
             let market = payload.into_active_model().update(&state.conn).await?;

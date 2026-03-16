@@ -1,8 +1,19 @@
-use entity::skill_type::SkillType;
+use entity::{skill, skill_type::SkillType};
 use macros::IntoDataResponse;
 use sea_orm::{DerivePartialModel, prelude::Uuid};
 use serde::{Deserialize, Serialize};
 
+impl From<skill::ModelEx> for SkillDto {
+    fn from(s: skill::ModelEx) -> Self {
+        Self {
+            id: s.id,
+            name: s.name,
+            skill_type: s.skill_type,
+            confirmed: s.confirmed,
+            ..Default::default()
+        }
+    }
+}
 #[derive(Deserialize, Debug)]
 pub struct CreateSkillRequest {
     pub name: String,
@@ -19,7 +30,7 @@ pub struct UpdateSkillRequest {
     pub confirmed: Option<bool>,
 }
 
-#[derive(Serialize, Deserialize, IntoDataResponse, Debug, Clone, DerivePartialModel)]
+#[derive(Serialize, Deserialize, IntoDataResponse, Debug, Clone, Default, DerivePartialModel)]
 #[sea_orm(entity = "entity::skill::Entity")]
 pub struct SkillDto {
     pub id: Uuid,

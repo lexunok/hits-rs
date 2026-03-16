@@ -3,7 +3,7 @@ use macros::IntoDataResponse;
 use sea_orm::{DerivePartialModel, prelude::Uuid};
 use serde::{Deserialize, Serialize};
 
-use crate::dtos::profile::UserDto;
+use crate::dtos::user::UserDto;
 
 #[derive(Serialize, IntoDataResponse, Debug, Deserialize, DerivePartialModel)]
 #[sea_orm(entity = "entity::group::Entity")]

@@ -1,22 +1,11 @@
-use chrono::Local;
+use crate::dtos::skill::SkillDto;
 use entity::role::Role;
 use macros::IntoDataResponse;
-use sea_orm::{
-    DerivePartialModel,
-    prelude::{DateTimeLocal, Uuid},
-};
+use sea_orm::prelude::{DateTimeLocal, Uuid};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize)]
-pub struct ProfileUpdatePayload {
-    pub last_name: String,
-    pub first_name: String,
-    pub study_group: Option<String>,
-    pub telephone: Option<String>,
-}
-#[derive(IntoDataResponse, Debug, Serialize, Deserialize, DerivePartialModel)]
-#[sea_orm(entity = "entity::users::Entity")]
-pub struct UserDto {
+#[derive(IntoDataResponse, Debug, Serialize, Deserialize, Default)]
+pub struct ProfileDto {
     pub id: Uuid,
     pub study_group: Option<String>,
     pub telephone: Option<String>,
@@ -25,19 +14,13 @@ pub struct UserDto {
     pub last_name: String,
     pub first_name: String,
     pub created_at: DateTimeLocal,
+    pub skills: Vec<SkillDto>,
 }
 
-impl Default for UserDto {
-    fn default() -> Self {
-        Self {
-            id: Uuid::default(),
-            study_group: None,
-            telephone: None,
-            roles: vec![],
-            email: String::default(),
-            last_name: String::default(),
-            first_name: String::default(),
-            created_at: Local::now(),
-        }
-    }
+#[derive(Debug, Deserialize)]
+pub struct ProfileUpdatePayload {
+    pub last_name: String,
+    pub first_name: String,
+    pub study_group: Option<String>,
+    pub telephone: Option<String>,
 }

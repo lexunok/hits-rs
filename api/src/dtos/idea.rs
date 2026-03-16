@@ -1,4 +1,4 @@
-use crate::dtos::{group::GroupDto, profile::UserDto, skill::SkillDto};
+use crate::dtos::{group::GroupDto, skill::SkillDto, user::UserDto};
 use entity::idea_status::IdeaStatus;
 use macros::IntoDataResponse;
 use sea_orm::{

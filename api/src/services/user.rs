@@ -2,13 +2,16 @@ use crate::{
     AppState,
     dtos::{
         common::PaginationParams,
-        profile::UserDto,
-        user::{UserCreatePayload, UserUpdatePayload},
+        user::{UserCreatePayload, UserDto, UserUpdatePayload},
     },
     error::AppError,
     utils::security::hash_password,
 };
-use entity::users::{self, Entity as User};
+use entity::{
+    prelude::{Skill, TeamMember, Users},
+    users,
+};
+use itertools::Itertools;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, IntoActiveModel, PaginatorTrait,
     QueryFilter, QueryOrder, prelude::Uuid,
@@ -19,7 +22,7 @@ pub struct UserService;
 
 impl UserService {
     pub async fn get_all(state: &AppState, pagination: PaginationParams) -> Vec<UserDto> {
-        User::find()
+        Users::find()
             .filter(users::Column::IsDeleted.eq(false))
             .order_by_desc(users::Column::CreatedAt)
             .into_partial_model()
@@ -28,8 +31,38 @@ impl UserService {
             .await
             .unwrap_or_default()
     }
+    pub async fn get_all_with_skills(state: &AppState) -> Vec<UserDto> {
+        Users::load()
+            .with(Skill)
+            .all(&state.conn)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(Into::into)
+            .collect()
+    }
+    pub async fn get_all_in_teams(state: &AppState) -> Vec<UserDto> {
+        TeamMember::load()
+            .filter(TeamMember::COLUMN.finish_date.is_null())
+            .with(Users)
+            .order_by_desc(Users::COLUMN.created_at)
+            .all(&state.conn)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|m| m.member.into_option())
+            .unique_by(|u| u.id)
+            .map(|member| UserDto {
+                id: member.id,
+                first_name: member.first_name,
+                last_name: member.last_name,
+                email: member.email,
+                ..Default::default()
+            })
+            .collect()
+    }
     pub async fn get_one(state: &AppState, id: Uuid) -> Result<UserDto, AppError> {
-        User::find_by_id(id)
+        Users::find_by_id(id)
             .into_partial_model()
             .one(&state.conn)
             .await?
@@ -57,7 +90,7 @@ impl UserService {
         Ok(())
     }
     pub async fn restore(state: &AppState, email: String) -> Result<(), AppError> {
-        let mut user = User::find_by_email(email)
+        let mut user = Users::find_by_email(email)
             .one(&state.conn)
             .await?
             .ok_or(AppError::NotFound)?
@@ -70,7 +103,7 @@ impl UserService {
         Ok(())
     }
     pub async fn delete(state: &AppState, id: Uuid) -> Result<(), AppError> {
-        let mut user = User::find_by_id(id)
+        let mut user = Users::find_by_id(id)
             .one(&state.conn)
             .await?
             .ok_or(AppError::NotFound)?

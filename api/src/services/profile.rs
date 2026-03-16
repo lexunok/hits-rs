@@ -3,7 +3,7 @@ use crate::{
     config::GLOBAL_CONFIG,
     dtos::{
         auth::{EmailResetPayload, PasswordResetPayload},
-        profile::ProfileUpdatePayload,
+        profile::{ProfileDto, ProfileUpdatePayload},
     },
     error::AppError,
     utils::{
@@ -15,14 +15,14 @@ use argon2::password_hash::rand_core::{OsRng, RngCore};
 use axum::body::Bytes;
 use chrono::{Duration, Local};
 use entity::{
-    users::Entity as User,
-    verification_code::{self, Entity as VerificationCode},
+    prelude::{Skill, Users, VerificationCode},
+    user_skill, verification_code,
 };
 use image::ImageFormat;
 use sea_orm::{
     ActiveModelTrait,
     ActiveValue::Set,
-    ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter, TransactionTrait,
+    ColumnTrait, EntityTrait, IntoActiveModel, ModelTrait, QueryFilter, TransactionTrait,
     prelude::{Expr, Uuid},
 };
 use std::path::PathBuf;
@@ -31,6 +31,52 @@ use validator::Validate;
 pub struct ProfileService;
 
 impl ProfileService {
+    pub async fn get(state: &AppState, user_id: Uuid) -> Result<ProfileDto, AppError> {
+        let user = Users::find_by_id(user_id)
+            .one(&state.conn)
+            .await?
+            .ok_or(AppError::NotFound)?;
+        let skills = user
+            .find_related(Skill)
+            .into_partial_model()
+            .all(&state.conn)
+            .await
+            .unwrap_or_default();
+        // И ДРУГИЕ ПОЛЯ ПРОФИЛЯ
+        Ok(ProfileDto {
+            id: user.id,
+            email: user.email,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            study_group: user.study_group,
+            telephone: user.telephone,
+            roles: user.roles,
+            created_at: user.created_at.into(),
+            skills,
+        })
+    }
+    pub async fn update_skills(
+        state: &AppState,
+        user_id: Uuid,
+        skills: Vec<Uuid>,
+    ) -> Result<(), AppError> {
+        let mut user = Users::find_by_id(user_id)
+            .one(&state.conn)
+            .await?
+            .ok_or(AppError::NotFound)?
+            .into_active_model()
+            .into_ex();
+
+        let skills: Vec<user_skill::ActiveModelEx> = skills
+            .iter()
+            .map(|id| user_skill::ActiveModelEx::new().set_skill_id(*id))
+            .collect();
+
+        user.user_skills.replace_all(skills);
+        user.insert(&state.conn).await?;
+
+        Ok(())
+    }
     pub async fn upload_avatar(user_id: Uuid, bytes: Bytes) -> Result<(), AppError> {
         let avatar_dir = PathBuf::from(&GLOBAL_CONFIG.avatar_path);
         let file_path = avatar_dir.join(format!("{}.webp", user_id));
@@ -48,7 +94,7 @@ impl ProfileService {
         payload: ProfileUpdatePayload,
         id: Uuid,
     ) -> Result<(), AppError> {
-        let mut user = User::find_by_id(id)
+        let mut user = Users::find_by_id(id)
             .one(&state.conn)
             .await?
             .ok_or(AppError::NotFound)?
@@ -76,7 +122,7 @@ impl ProfileService {
         state: &AppState,
         new_email: String,
     ) -> Result<Uuid, AppError> {
-        let user = User::find_by_email(new_email.to_lowercase())
+        let user = Users::find_by_email(new_email.to_lowercase())
             .one(&state.conn)
             .await?;
 
@@ -135,7 +181,7 @@ impl ProfileService {
         .await
     }
     pub async fn request_password_reset(state: &AppState, email: String) -> Result<Uuid, AppError> {
-        User::find_by_email(email.to_lowercase())
+        Users::find_by_email(email.to_lowercase())
             .one(&state.conn)
             .await?
             .ok_or(AppError::NotFound)?;
@@ -197,9 +243,9 @@ impl ProfileService {
             let txn = state.conn.begin().await?;
 
             let mut user = if let Some(email) = email {
-                User::find_by_email(email)
+                Users::find_by_email(email)
             } else {
-                User::find_by_email(verification_code.email.to_lowercase().clone())
+                Users::find_by_email(verification_code.email.to_lowercase().clone())
             }
             .one(&txn)
             .await?

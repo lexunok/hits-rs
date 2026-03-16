@@ -72,10 +72,8 @@ cargo run -p migration -- fresh
 ```
 
 ### Генерация сущностей (Entities)
-
-После изменения таблиц в базе данных через миграции, необходимо обновить сущности SeaORM. Указать конкретные таблицы, чтобы избежать перезаписывания кастомных моделей. ВАЖНО!!! При генерации теряется enum Role к сожалению, тут либо подход к enum менять либо ручками возвращать ее либо не генерировать entity а от entity генерировать миграции, то есть Entity-First Workflow.
 ```bash
-sea-orm-cli generate entity --output-dir ./entity/src --lib --entity-format dense --with-serde both --ignore-tables users invitation
+sea-orm-cli generate entity --output-dir ./entity/generated --lib --entity-format dense --with-serde both
 ```
 
 ## Ключевые изменения и решения

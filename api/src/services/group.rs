@@ -2,7 +2,7 @@ use crate::{
     AppState,
     dtos::{
         group::{CreateGroupRequest, GroupDto, UpdateGroupRequest},
-        profile::UserDto,
+        user::UserDto,
     },
     error::AppError,
 };

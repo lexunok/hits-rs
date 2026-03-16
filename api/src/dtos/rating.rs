@@ -1,4 +1,4 @@
-use crate::dtos::profile::UserDto;
+use crate::dtos::user::UserDto;
 use entity::rating::ActiveModel;
 use macros::IntoDataResponse;
 use sea_orm::{DeriveIntoActiveModel, DerivePartialModel, prelude::Uuid};
@@ -29,5 +29,4 @@ pub struct UpdateRatingRequest {
     pub technical_realizability: i64,
     pub suitability: i64,
     pub budget: i64,
-    pub rating: f64,
 }

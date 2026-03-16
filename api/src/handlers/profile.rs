@@ -3,7 +3,7 @@ use crate::{
     dtos::{
         auth::EmailResetPayload,
         common::{IdResponse, MessageResponse},
-        profile::ProfileUpdatePayload,
+        profile::{ProfileDto, ProfileUpdatePayload},
     },
     error::AppError,
     services::profile::ProfileService,
@@ -12,12 +12,15 @@ use crate::{
 use axum::{
     Json, Router,
     extract::{Multipart, Path, State},
-    routing::{post, put},
+    routing::{get, post, put},
 };
+use sea_orm::prelude::Uuid;
 
 pub fn profile_router() -> Router<AppState> {
     Router::new()
         .route("/", put(update_profile))
+        .route("/{id}", get(get_profile))
+        .route("/skills", put(update_profile_skills))
         .route("/avatar", post(upload_avatar))
         .route(
             "/email/verification/{new_email}",
@@ -25,7 +28,24 @@ pub fn profile_router() -> Router<AppState> {
         )
         .route("/email", put(confirm_and_update_email))
 }
-
+async fn get_profile(
+    State(state): State<AppState>,
+    _: Claims,
+    Path(id): Path<Uuid>,
+) -> Result<ProfileDto, AppError> {
+    let profile = ProfileService::get(&state, id).await?;
+    Ok(profile)
+}
+async fn update_profile_skills(
+    State(state): State<AppState>,
+    claims: Claims,
+    Json(payload): Json<Vec<Uuid>>,
+) -> Result<MessageResponse, AppError> {
+    ProfileService::update_skills(&state, claims.sub, payload).await?;
+    Ok(MessageResponse {
+        message: "Успешное обновление навыков".to_string(),
+    })
+}
 async fn upload_avatar(
     claims: Claims,
     mut multipart: Multipart,
