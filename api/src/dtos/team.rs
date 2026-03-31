@@ -1,10 +1,9 @@
 use crate::dtos::skill::SkillDto;
 use crate::dtos::user::UserDto;
-use entity::team::ActiveModel;
+use entity::{request_status::RequestStatus, team::ActiveModel};
 use macros::IntoDataResponse;
 use sea_orm::{
-    DeriveIntoActiveModel, FromQueryResult,
-    prelude::{DateTimeLocal, Uuid},
+    DeriveIntoActiveModel, DerivePartialModel, FromQueryResult, prelude::{DateTimeLocal, Uuid}
 };
 use serde::{Deserialize, Serialize};
 
@@ -77,4 +76,29 @@ pub struct UpdateTeamRequest {
     pub is_closed: bool,
     #[sea_orm(skip)]
     pub wanted_skills: Vec<Uuid>,
+}
+
+#[derive(IntoDataResponse, Serialize, Deserialize, DerivePartialModel)]
+#[sea_orm(entity = "entity::team_invitation::Entity")]
+pub struct TeamInvitationDto {
+    pub id: Uuid,
+    pub user_id: Uuid,
+    pub team_id: Uuid,
+    pub email: String,
+    pub first_name: String,
+    pub last_name: String,
+    pub status: RequestStatus,
+    pub created_at: DateTimeLocal,
+}
+
+#[derive(IntoDataResponse, Serialize, Deserialize, FromQueryResult)]
+pub struct TeamMarketRequestDto {
+    pub id: Uuid,
+    pub team_id: Uuid,
+    pub market_id: Uuid,
+    pub idea_market_id: Uuid,
+    pub name: String,
+    pub letter: String,
+    pub status: RequestStatus,
+    pub created_at: DateTimeLocal,
 }

@@ -319,6 +319,7 @@ impl MigrationTrait for Migration {
                             .default(Expr::cust("gen_random_uuid()")),
                     )
                     .col(ColumnDef::new(TeamMarketRequest::TeamId).uuid().not_null())
+                    .col(ColumnDef::new(TeamMarketRequest::MarketId).uuid().not_null())
                     .col(
                         ColumnDef::new(TeamMarketRequest::IdeaMarketId)
                             .uuid()
@@ -340,6 +341,13 @@ impl MigrationTrait for Migration {
                         ForeignKey::create()
                             .from(TeamMarketRequest::Table, TeamMarketRequest::TeamId)
                             .to(Team::Table, Team::Id)
+                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_update(ForeignKeyAction::Cascade),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(TeamMarketRequest::Table, TeamMarketRequest::MarketId)
+                            .to(Market::Table, Market::Id)
                             .on_delete(ForeignKeyAction::Cascade)
                             .on_update(ForeignKeyAction::Cascade),
                     )
@@ -490,6 +498,7 @@ enum TeamMarketRequest {
     Table,
     Id,
     TeamId,
+    MarketId,
     IdeaMarketId,
     Letter,
     Status,

@@ -5,20 +5,20 @@ use serde::{Deserialize, Serialize};
 
 #[sea_orm::model]
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "team_wanted_skill")]
+#[sea_orm(table_name = "idea_market_refused")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub team_id: Uuid,
     #[sea_orm(primary_key, auto_increment = false)]
-    pub skill_id: Uuid,
+    pub idea_id: Uuid,
     #[sea_orm(
         belongs_to,
-        from = "skill_id",
+        from = "idea_id",
         to = "id",
         on_update = "Cascade",
         on_delete = "Cascade"
     )]
-    pub skill: HasOne<super::skill::Entity>,
+    pub idea: HasOne<super::idea::Entity>,
     #[sea_orm(
         belongs_to,
         from = "team_id",

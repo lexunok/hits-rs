@@ -3,22 +3,21 @@
 use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use crate::request_status::RequestStatus;
+
 #[sea_orm::model]
 #[derive(Clone, Debug, PartialEq, Eq, DeriveEntityModel, Serialize, Deserialize)]
-#[sea_orm(table_name = "team_wanted_skill")]
+#[sea_orm(table_name = "team_invitation")]
 pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
+    pub id: Uuid,
+    pub user_id: Uuid,
     pub team_id: Uuid,
-    #[sea_orm(primary_key, auto_increment = false)]
-    pub skill_id: Uuid,
-    #[sea_orm(
-        belongs_to,
-        from = "skill_id",
-        to = "id",
-        on_update = "Cascade",
-        on_delete = "Cascade"
-    )]
-    pub skill: HasOne<super::skill::Entity>,
+    pub email: String,
+    pub first_name: String,
+    pub last_name: String,
+    pub status: RequestStatus,
+    pub created_at: DateTimeWithTimeZone,
     #[sea_orm(
         belongs_to,
         from = "team_id",
@@ -27,6 +26,14 @@ pub struct Model {
         on_delete = "Cascade"
     )]
     pub team: HasOne<super::team::Entity>,
+    #[sea_orm(
+        belongs_to,
+        from = "user_id",
+        to = "id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
+    pub users: HasOne<super::users::Entity>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}

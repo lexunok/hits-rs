@@ -25,3 +25,4 @@ pub use super::team_wanted_skill::Entity as TeamWantedSkill;
 pub use super::user_skill::Entity as UserSkill;
 pub use super::users::Entity as Users;
 pub use super::verification_code::Entity as VerificationCode;
+pub use super::team_invitation::Entity as TeamInvitation;

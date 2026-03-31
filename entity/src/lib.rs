@@ -33,3 +33,4 @@ pub mod team_wanted_skill;
 pub mod user_skill;
 pub mod users;
 pub mod verification_code;
+pub mod team_invitation;

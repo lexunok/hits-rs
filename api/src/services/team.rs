@@ -2,18 +2,14 @@ use crate::{
     AppState,
     dtos::{
         skill::SkillDto,
-        team::{CreateTeamRequest, TeamDto, UpdateTeamRequest},
+        team::{CreateTeamRequest, TeamDto, TeamInvitationDto, TeamMarketRequestDto, UpdateTeamRequest},
         user::UserDto,
     },
     error::AppError,
 };
 use entity::{
-    idea_market_refused,
-    prelude::{
-        IdeaMarketRefused, Skill, Team, TeamMember, TeamRefused, TeamWantedSkill, UserSkill, Users,
-    },
-    role::Role,
-    team, team_member, team_wanted_skill,
+    idea, idea_market, idea_market_refused, prelude::{Idea, IdeaMarket, IdeaMarketRefused, Skill, Team, TeamInvitation, TeamMarketRequest, TeamMember, TeamRefused, TeamWantedSkill, UserSkill, Users
+    }, role::Role, team, team_invitation, team_market_request, team_member, team_wanted_skill
 };
 
 use sea_orm::{
@@ -221,6 +217,42 @@ impl TeamService {
         Ok(team)
     }
 
+    pub async fn get_team_invitations_by_user(
+        state: &AppState,
+        user_id: Uuid,
+    ) -> Vec<TeamInvitationDto> {
+        TeamInvitation::find()
+            .filter(TeamInvitation::COLUMN.user_id.eq(user_id))
+            .into_partial_model::<TeamInvitationDto>()
+            .all(&state.conn)
+            .await
+            .unwrap_or_default()
+    }
+    pub async fn get_team_invitations_by_team(
+        state: &AppState,
+        team_id: Uuid,
+    ) -> Vec<TeamInvitationDto> {
+        TeamInvitation::find()
+            .filter(TeamInvitation::COLUMN.team_id.eq(team_id))
+            .into_partial_model::<TeamInvitationDto>()
+            .all(&state.conn)
+            .await
+            .unwrap_or_default()
+    }
+    pub async fn get_team_market_requests(
+        state: &AppState,
+        team_id: Uuid,
+    ) -> Vec<TeamMarketRequestDto> {
+        TeamMarketRequest::find()
+            .filter(TeamMarketRequest::COLUMN.team_id.eq(team_id))
+            .left_join(IdeaMarket)
+            .join(JoinType::InnerJoin, idea_market::Relation::Idea.def())
+            .column_as(idea::Column::Name, "name")
+            .into_model()
+            .all(&state.conn)
+            .await
+            .unwrap_or_default()
+    }
     pub async fn create(
         state: &AppState,
         payload: CreateTeamRequest,
