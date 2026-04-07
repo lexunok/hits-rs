@@ -77,23 +77,37 @@ pub async fn send_invitation(
 
     Ok(())
 }
+pub async fn send_team_invitation(
+    team_id: String,
+    team_name: String,
+    first_name: String,
+    last_name: String,
+    email: String,
+) -> Result<(), Error> {
+    let subject = "Приглашение в команду".to_string();
+    let link = format!("{}/team/list/{}", GLOBAL_CONFIG.client_url, team_id);
+    let invitation_text = format!(
+        "Вас пригласил(-а) {} {} в команду \"{}\" в качестве участника.",
+        first_name, last_name, team_name
+    );
 
-// @RabbitListener(queues = "${rabbitmq.queues.team-invitation}", ackMode = "MANUAL")
-// public Mono<Void> sendTeamInvitation(TeamInvitationRequest request) {
-//     return Mono.fromCallable(() -> {
-//         String message = String.format("Вас пригласил(-а) %s %s в команду \"%s\" в качестве участника.",
-//                 request.getSenderFirstName(), request.getSenderLastName(), request.getTeamName());
-//         NotificationRequest emailRequest = NotificationRequest.builder()
-//                 .consumerEmail(request.getReceiver())
-//                 .title("Приглашение в команду")
-//                 .message(message)
-//                 .link("https://hits.tyuiu.ru/teams/list/" + request.getTeamId())
-//                 .buttonName("Перейти в команду")
-//                 .build();
-//         sendMailNotification(emailRequest);
-//         return Mono.empty();
-//     }).then();
-// }
+    let notification = Notification {
+        email: email.clone(),
+        title: subject.clone(),
+        message: invitation_text,
+        link,
+        button_name: "Перейти в команду".to_string(),
+    };
+
+    let tera = Tera::new("api/templates/**/*")?;
+    let mut ctx = Context::new();
+    ctx.insert("notification", &notification);
+    let html = tera.render("notification.html", &ctx)?;
+
+    send_message_to_email(email, html, subject).await?;
+
+    Ok(())
+}
 pub async fn send_message_to_email(
     email: String,
     html: String,

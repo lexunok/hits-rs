@@ -91,6 +91,16 @@ pub struct TeamInvitationDto {
     pub created_at: DateTimeLocal,
 }
 
+#[derive(Serialize, Deserialize, DeriveIntoActiveModel)]
+#[sea_orm(active_model = "entity::team_invitation::ActiveModel")]
+pub struct CreateTeamInvitation {
+    pub user_id: Uuid,
+    pub team_id: Uuid,
+    pub email: String,
+    pub first_name: String,
+    pub last_name: String,
+}
+
 #[derive(IntoDataResponse, Serialize, Deserialize, FromQueryResult)]
 pub struct TeamMarketRequestDto {
     pub id: Uuid,

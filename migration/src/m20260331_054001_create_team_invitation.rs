@@ -28,7 +28,8 @@ impl MigrationTrait for Migration {
                     .col(
                         ColumnDef::new(TeamInvitation::Status)
                             .string()
-                            .not_null(),
+                            .not_null()
+                            .default("NEW"),
                     )
                     .col(
                         ColumnDef::new(TeamInvitation::CreatedAt)

@@ -8,13 +8,11 @@ use crate::{
     utils::security::hash_password,
 };
 use entity::{
-    prelude::{Skill, TeamMember, Users},
-    users,
+    prelude::{Skill, TeamMember, Users}, team_member, users
 };
 use itertools::Itertools;
-use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, IntoActiveModel, PaginatorTrait,
-    QueryFilter, QueryOrder, prelude::Uuid,
+use sea_orm::{ sea_query::Expr, QuerySelect, QueryTrait,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, ExprTrait, IntoActiveModel, PaginatorTrait, QueryFilter, QueryOrder, prelude::Uuid
 };
 use serde_json::json;
 
@@ -60,6 +58,28 @@ impl UserService {
                 ..Default::default()
             })
             .collect()
+    }
+    pub async fn get_all_not_in_teams(state: &AppState) -> Vec<UserDto> {
+        Users::find()
+            .left_join(TeamMember)
+            .filter(Expr::not(Expr::exists(
+            TeamMember::find()
+                .select_only()
+                .expr(Expr::val(1))
+                .filter(
+                    Expr::col((team_member::Entity, team_member::Column::UserId))
+                        .eq(Expr::col((users::Entity, users::Column::Id)))
+                )
+                .filter(
+                    Expr::col((team_member::Entity, team_member::Column::FinishDate))
+                        .is_null()
+                )
+                .into_query()
+            )))
+            .into_partial_model()
+            .all(&state.conn)
+            .await
+            .unwrap_or_default()
     }
     pub async fn get_one(state: &AppState, id: Uuid) -> Result<UserDto, AppError> {
         Users::find_by_id(id)
