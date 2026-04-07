@@ -14,6 +14,7 @@ mod dtos;
 mod error;
 mod handlers;
 mod services;
+pub mod test_support;
 mod utils;
 mod workers;
 
@@ -25,19 +26,48 @@ pub async fn start() -> anyhow::Result<()> {
 
     dotenvy::dotenv().ok();
 
-    let conn = Database::connect(GLOBAL_CONFIG.db_url.to_owned()).await?;
-    Migrator::up(&conn, None).await?;
-    create_admin(conn.clone()).await.unwrap();
-
-    let redis_client = redis::Client::open(GLOBAL_CONFIG.redis_url.to_owned())?;
-
-    let state = AppState { conn, redis_client };
+    let state = init_app_state().await?;
+    create_admin(state.conn.clone()).await.unwrap();
 
     let redis_clone = state.redis_client.clone();
     tokio::spawn(async move {
         invitation_worker::invitation_worker(redis_clone).await;
     });
 
+    let app = build_app(state)?;
+
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", GLOBAL_CONFIG.port)).await?;
+    tracing::debug!("listening on {}", listener.local_addr()?);
+    axum::serve(listener, app).await?;
+
+    Ok(())
+}
+
+#[derive(Clone)]
+pub struct AppState {
+    conn: DatabaseConnection,
+    redis_client: redis::Client,
+}
+
+impl AppState {
+    pub fn new(conn: DatabaseConnection, redis_client: redis::Client) -> Self {
+        Self { conn, redis_client }
+    }
+
+    pub fn conn(&self) -> &DatabaseConnection {
+        &self.conn
+    }
+}
+
+pub async fn init_app_state() -> anyhow::Result<AppState> {
+    let conn = Database::connect(GLOBAL_CONFIG.db_url.to_owned()).await?;
+    Migrator::up(&conn, None).await?;
+    let redis_client = redis::Client::open(GLOBAL_CONFIG.redis_url.to_owned())?;
+
+    Ok(AppState::new(conn, redis_client))
+}
+
+pub fn build_app(state: AppState) -> anyhow::Result<Router> {
     let cors = CorsLayer::new()
         .allow_origin(
             GLOBAL_CONFIG
@@ -58,20 +88,8 @@ pub async fn start() -> anyhow::Result<()> {
 
     fs::create_dir_all(GLOBAL_CONFIG.avatar_path.clone())?;
 
-    let app = Router::new()
+    Ok(Router::new()
         .nest("/api", main_router())
         .with_state(state)
-        .layer(cors);
-
-    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", GLOBAL_CONFIG.port)).await?;
-    tracing::debug!("listening on {}", listener.local_addr()?);
-    axum::serve(listener, app).await?;
-
-    Ok(())
-}
-
-#[derive(Clone)]
-pub struct AppState {
-    conn: DatabaseConnection,
-    redis_client: redis::Client,
+        .layer(cors))
 }

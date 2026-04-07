@@ -1,4 +1,3 @@
-
 use sea_orm::entity::prelude::*;
 use strum_macros::{Display, EnumString};
 

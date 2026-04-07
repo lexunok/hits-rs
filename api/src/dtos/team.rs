@@ -3,7 +3,8 @@ use crate::dtos::user::UserDto;
 use entity::{request_status::RequestStatus, team::ActiveModel};
 use macros::IntoDataResponse;
 use sea_orm::{
-    DeriveIntoActiveModel, DerivePartialModel, FromQueryResult, prelude::{DateTimeLocal, Uuid}
+    DeriveIntoActiveModel, DerivePartialModel, FromQueryResult,
+    prelude::{DateTimeLocal, Uuid},
 };
 use serde::{Deserialize, Serialize};
 

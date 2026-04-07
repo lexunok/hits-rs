@@ -1,7 +1,8 @@
 use crate::{
     AppState,
     dtos::{
-        common::MessageResponse, invitation::{InvitationPayload, InvitationResponse},
+        common::MessageResponse,
+        invitation::{InvitationPayload, InvitationResponse},
     },
     error::AppError,
     services::invitation::InvitationService,

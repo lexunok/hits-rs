@@ -319,7 +319,11 @@ impl MigrationTrait for Migration {
                             .default(Expr::cust("gen_random_uuid()")),
                     )
                     .col(ColumnDef::new(TeamMarketRequest::TeamId).uuid().not_null())
-                    .col(ColumnDef::new(TeamMarketRequest::MarketId).uuid().not_null())
+                    .col(
+                        ColumnDef::new(TeamMarketRequest::MarketId)
+                            .uuid()
+                            .not_null(),
+                    )
                     .col(
                         ColumnDef::new(TeamMarketRequest::IdeaMarketId)
                             .uuid()

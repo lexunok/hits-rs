@@ -1,7 +1,8 @@
 use crate::{
     AppState,
     dtos::{
-        common::MessageResponse, group::{CreateGroupRequest, GroupDto, UpdateGroupRequest}
+        common::MessageResponse,
+        group::{CreateGroupRequest, GroupDto, UpdateGroupRequest},
     },
     error::AppError,
     services::group::GroupService,
@@ -17,14 +18,14 @@ use sea_orm::prelude::Uuid;
 
 pub fn group_router() -> Router<AppState> {
     Router::new()
-        .route("/", get(get_all_groups).post(create_group).put(update_group))
+        .route(
+            "/",
+            get(get_all_groups).post(create_group).put(update_group),
+        )
         .route("/{id}", get(get_group_by_id).delete(delete_group))
 }
 
-async fn get_all_groups(
-    State(state): State<AppState>,
-    _: Claims,
-) -> Json<Vec<GroupDto>> {
+async fn get_all_groups(State(state): State<AppState>, _: Claims) -> Json<Vec<GroupDto>> {
     let groups = GroupService::get_all(&state).await;
     Json(groups)
 }

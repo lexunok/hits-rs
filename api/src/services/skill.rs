@@ -6,7 +6,8 @@ use crate::{
 use chrono::Local;
 use entity::{prelude::*, skill, skill_type::SkillType};
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, ExprTrait, IntoActiveModel, QueryFilter, prelude::Uuid
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, ExprTrait, IntoActiveModel,
+    QueryFilter, prelude::Uuid,
 };
 use std::collections::HashMap;
 
@@ -38,24 +39,27 @@ impl SkillService {
         user_id: Uuid,
     ) -> HashMap<String, Vec<SkillDto>> {
         let skills: Vec<SkillDto> = Skill::find()
-            .filter(skill::Column::Confirmed.eq(true).or(skill::Column::CreatorId.eq(user_id)))
+            .filter(
+                skill::Column::Confirmed
+                    .eq(true)
+                    .or(skill::Column::CreatorId.eq(user_id)),
+            )
             .filter(skill::Column::DeletedAt.is_null())
             .into_partial_model()
             .all(&state.conn)
             .await
             .unwrap_or_default();
 
-        let mut map: HashMap<String, Vec<SkillDto>>  = HashMap::new();
+        let mut map: HashMap<String, Vec<SkillDto>> = HashMap::new();
         for skill in skills {
-            map.entry(skill.skill_type.to_string()).or_default().push(skill);
+            map.entry(skill.skill_type.to_string())
+                .or_default()
+                .push(skill);
         }
         map
     }
 
-    pub async fn get_by_type(
-        state: &AppState,
-        skill_type: SkillType,
-    ) -> Vec<SkillDto> {
+    pub async fn get_by_type(state: &AppState, skill_type: SkillType) -> Vec<SkillDto> {
         Skill::find()
             .filter(skill::Column::SkillType.eq(skill_type))
             .filter(skill::Column::DeletedAt.is_null())
@@ -71,13 +75,18 @@ impl SkillService {
         creator_id: Uuid,
         is_confirmed: bool,
     ) -> Result<SkillDto, AppError> {
-        Skill::find()                                                                                                  
-            .filter(skill::Column::Name.eq(&payload.name))             
-            .filter(skill::Column::SkillType.eq(payload.skill_type.clone()))                                                                                                                                                                                             
-            .filter(skill::Column::DeletedAt.is_null())                                                                                                        
-            .one(&state.conn)                                                                                                                                  
-            .await
-            .map_err(|_| AppError::Custom("Навык с таким именем и типом уже существует.".to_string()))?;                                                                                                                                           
+        let existing_skill = Skill::find()
+            .filter(skill::Column::Name.eq(&payload.name))
+            .filter(skill::Column::SkillType.eq(payload.skill_type.clone()))
+            .filter(skill::Column::DeletedAt.is_null())
+            .one(&state.conn)
+            .await?;
+
+        if existing_skill.is_some() {
+            return Err(AppError::Custom(
+                "Навык с таким именем и типом уже существует.".to_string(),
+            ));
+        }
 
         let new_skill = skill::ActiveModel {
             name: Set(payload.name),
@@ -88,14 +97,14 @@ impl SkillService {
         };
 
         let skill = new_skill.insert(&state.conn).await?;
-        Ok(SkillDto { 
-            id: skill.id, 
-            name: skill.name, 
-            skill_type: skill.skill_type, 
-            confirmed: skill.confirmed, 
-            creator_id: skill.creator_id, 
-            updater_id: skill.updater_id, 
-            deleter_id: skill.deleter_id 
+        Ok(SkillDto {
+            id: skill.id,
+            name: skill.name,
+            skill_type: skill.skill_type,
+            confirmed: skill.confirmed,
+            creator_id: skill.creator_id,
+            updater_id: skill.updater_id,
+            deleter_id: skill.deleter_id,
         })
     }
 
@@ -126,14 +135,14 @@ impl SkillService {
 
         let skill = skill.update(&state.conn).await?;
 
-        Ok(SkillDto { 
-            id: skill.id, 
-            name: skill.name, 
-            skill_type: skill.skill_type, 
-            confirmed: skill.confirmed, 
-            creator_id: skill.creator_id, 
-            updater_id: skill.updater_id, 
-            deleter_id: skill.deleter_id 
+        Ok(SkillDto {
+            id: skill.id,
+            name: skill.name,
+            skill_type: skill.skill_type,
+            confirmed: skill.confirmed,
+            creator_id: skill.creator_id,
+            updater_id: skill.updater_id,
+            deleter_id: skill.deleter_id,
         })
     }
 

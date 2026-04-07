@@ -8,11 +8,14 @@ use crate::{
     utils::security::hash_password,
 };
 use entity::{
-    prelude::{Skill, TeamMember, Users}, team_member, users
+    prelude::{Skill, TeamMember, Users},
+    team_member, users,
 };
 use itertools::Itertools;
-use sea_orm::{ sea_query::Expr, QuerySelect, QueryTrait,
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, ExprTrait, IntoActiveModel, PaginatorTrait, QueryFilter, QueryOrder, prelude::Uuid
+use sea_orm::{
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, ExprTrait, IntoActiveModel,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, QueryTrait, prelude::Uuid,
+    sea_query::Expr,
 };
 use serde_json::json;
 
@@ -63,18 +66,17 @@ impl UserService {
         Users::find()
             .left_join(TeamMember)
             .filter(Expr::not(Expr::exists(
-            TeamMember::find()
-                .select_only()
-                .expr(Expr::val(1))
-                .filter(
-                    Expr::col((team_member::Entity, team_member::Column::UserId))
-                        .eq(Expr::col((users::Entity, users::Column::Id)))
-                )
-                .filter(
-                    Expr::col((team_member::Entity, team_member::Column::FinishDate))
-                        .is_null()
-                )
-                .into_query()
+                TeamMember::find()
+                    .select_only()
+                    .expr(Expr::val(1))
+                    .filter(
+                        Expr::col((team_member::Entity, team_member::Column::UserId))
+                            .eq(Expr::col((users::Entity, users::Column::Id))),
+                    )
+                    .filter(
+                        Expr::col((team_member::Entity, team_member::Column::FinishDate)).is_null(),
+                    )
+                    .into_query(),
             )))
             .into_partial_model()
             .all(&state.conn)

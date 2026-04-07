@@ -37,7 +37,10 @@ async fn get_all_users(
 async fn get_all_users_in_teams(State(state): State<AppState>, _: Claims) -> Json<Vec<UserDto>> {
     Json(UserService::get_all_in_teams(&state).await)
 }
-async fn get_all_users_not_in_teams(State(state): State<AppState>, _: Claims) -> Json<Vec<UserDto>> {
+async fn get_all_users_not_in_teams(
+    State(state): State<AppState>,
+    _: Claims,
+) -> Json<Vec<UserDto>> {
     Json(UserService::get_all_not_in_teams(&state).await)
 }
 async fn get_all_users_with_skills(State(state): State<AppState>, _: Claims) -> Json<Vec<UserDto>> {

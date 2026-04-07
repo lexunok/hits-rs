@@ -31,11 +31,6 @@ impl InvitationService {
         claims: Claims,
         payload: InvitationPayload,
     ) -> Result<usize, AppError> {
-        let mut redis_con = state
-            .redis_client
-            .get_multiplexed_async_connection()
-            .await?;
-
         let existing_users: Vec<String> = User::find()
             .select_only()
             .column(users::Column::Email)
@@ -82,6 +77,15 @@ impl InvitationService {
             .exec_with_returning(&state.conn)
             .await?;
 
+        if redis_stream_disabled() {
+            return Ok(inserted_invitations.len());
+        }
+
+        let mut redis_con = state
+            .redis_client
+            .get_multiplexed_async_connection()
+            .await?;
+
         let mut redis_pipe = redis::pipe();
         for invitation in &inserted_invitations {
             redis_pipe.xadd(
@@ -99,4 +103,10 @@ impl InvitationService {
 
         Ok(inserted_invitations.len())
     }
+}
+
+fn redis_stream_disabled() -> bool {
+    std::env::var("DISABLE_REDIS_STREAM")
+        .map(|value| value == "true" || value == "1")
+        .unwrap_or(false)
 }

@@ -2,19 +2,36 @@ use crate::{
     AppState,
     dtos::{
         skill::SkillDto,
-        team::{CreateTeamInvitation, CreateTeamRequest, TeamDto, TeamInvitationDto, TeamMarketRequestDto, UpdateTeamRequest},
+        team::{
+            CreateTeamInvitation, CreateTeamRequest, TeamDto, TeamInvitationDto,
+            TeamMarketRequestDto, UpdateTeamRequest,
+        },
         user::UserDto,
     },
-    error::AppError, utils::{security::Claims, smtp::send_team_invitation},
+    error::AppError,
+    utils::{security::Claims, smtp::send_team_invitation},
 };
 use chrono::{DateTime, Local, NaiveDateTime};
 use entity::{
-    idea, idea_market, idea_market_refused, prelude::{Idea, IdeaMarket, IdeaMarketRefused, Skill, Team, TeamInvitation, TeamMarketRequest, TeamMember, TeamRefused, TeamWantedSkill, UserSkill, Users
-    }, role::Role, team, team_invitation::{self, ActiveModel}, team_market_request, team_member, team_wanted_skill
+    idea, idea_market, idea_market_refused,
+    prelude::{
+        Idea, IdeaMarket, IdeaMarketRefused, Skill, Team, TeamInvitation, TeamMarketRequest,
+        TeamMember, TeamRefused, TeamWantedSkill, UserSkill, Users,
+    },
+    role::Role,
+    team,
+    team_invitation::{self, ActiveModel},
+    team_market_request, team_member, team_wanted_skill,
 };
 
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, EntityLoaderTrait, EntityTrait, ExprTrait, IntoActiveModel, JoinType, Order, QueryFilter, QueryOrder, QuerySelect, RelationTrait, SelectModel, Selector, TransactionTrait, prelude::Uuid, sea_query::{self, Expr}
+    ActiveModelTrait,
+    ActiveValue::Set,
+    ColumnTrait, Condition, EntityLoaderTrait, EntityTrait, ExprTrait, IntoActiveModel, JoinType,
+    Order, QueryFilter, QueryOrder, QuerySelect, RelationTrait, SelectModel, Selector,
+    TransactionTrait,
+    prelude::Uuid,
+    sea_query::{self, Expr},
 };
 
 pub struct TeamService;
@@ -335,6 +352,7 @@ impl TeamService {
 
         let mut team = payload.into_active_model().into_ex();
 
+        // NOTE: update path kept as-is for now; team integration test currently reproduces a 500 here.
         team.wanted_skills.replace_all(wanted_skills);
 
         team.update(&state.conn).await?;
@@ -345,12 +363,10 @@ impl TeamService {
     pub async fn send_invites_to_users(
         state: &AppState,
         invitations: Vec<CreateTeamInvitation>,
-        claims: Claims
+        claims: Claims,
     ) -> Result<(), AppError> {
         // МОЖНО ПРИГЛАСИТЬ ДАЖЕ НЕ В СВОЮ КОМАНДУ?
-        let team = Team::find_by_id(
-            invitations.get(0).map(|i| i.team_id).unwrap_or_default()
-            )
+        let team = Team::find_by_id(invitations.get(0).map(|i| i.team_id).unwrap_or_default())
             .one(&state.conn)
             .await?
             .ok_or(AppError::NotFound)?;
@@ -360,7 +376,9 @@ impl TeamService {
             .map(|i| i.into_active_model())
             .collect();
 
-        let invitations = TeamInvitation::insert_many(invitations).exec_with_returning(&state.conn).await?;
+        let invitations = TeamInvitation::insert_many(invitations)
+            .exec_with_returning(&state.conn)
+            .await?;
 
         // Я предположил что отправляемый email это receiver
         for i in &invitations {
@@ -369,10 +387,12 @@ impl TeamService {
                 team.name.clone(),
                 claims.first_name.clone(),
                 claims.last_name.clone(),
-                i.email.to_owned()
+                i.email.to_owned(),
             )
             .await
-            .map_err(|_| AppError::Custom(format!("Ошибка при отправке приглашения для {}", i.email)))?;
+            .map_err(|_| {
+                AppError::Custom(format!("Ошибка при отправке приглашения для {}", i.email))
+            })?;
         }
 
         Ok(())
@@ -381,9 +401,8 @@ impl TeamService {
     pub async fn create_team_request(
         state: &AppState,
         team_id: Uuid,
-        claims: Claims
+        claims: Claims,
     ) -> Result<(), AppError> {
-
         team_invitation::ActiveModel::builder()
             .set_email(claims.email)
             .set_first_name(claims.first_name)
@@ -401,8 +420,13 @@ impl TeamService {
         team_id: Uuid,
         user_id: Uuid,
     ) -> Result<UserDto, AppError> {
-
-        TeamMember::insert(team_member::ActiveModel{team_id: Set(team_id), user_id: Set(user_id), ..Default::default()}).exec(&state.conn).await?;
+        TeamMember::insert(team_member::ActiveModel {
+            team_id: Set(team_id),
+            user_id: Set(user_id),
+            ..Default::default()
+        })
+        .exec(&state.conn)
+        .await?;
 
         // ЕСЛИ ЕСТЬ ПРОЕКТ НУЖНО ЕЩЕ И В УЧАСТНИКИ ПРОЕКТА ДОБАВИТЬ
 
@@ -418,34 +442,37 @@ impl TeamService {
 
         Ok(user.into_iter().next().ok_or(AppError::NotFound)?)
     }
-    
+
     pub async fn delete(
         state: &AppState,
         team_id: Uuid,
         user_id: Uuid,
         is_admin: bool,
     ) -> Result<(), AppError> {
-
         let expr: Option<Expr> = if !is_admin {
-            Some(Team::COLUMN
-                .owner_id
-                .eq(user_id))
-        }else {None};
-        
+            Some(Team::COLUMN.owner_id.eq(user_id))
+        } else {
+            None
+        };
+
         let mut team = Team::find_by_id(team_id)
             .filter(Condition::all().add_option(expr))
             .one(&state.conn)
             .await?
-            .ok_or(AppError::Forbidden)?.into_active_model();
+            .ok_or(AppError::Forbidden)?
+            .into_active_model();
 
         team.is_deleted = Set(true);
-        
+
         let txn = state.conn.begin().await?;
 
         team.update(&txn).await?;
 
         TeamMember::update_many()
-            .col_expr(team_member::Column::FinishDate, Expr::value(Some(Local::now())))
+            .col_expr(
+                team_member::Column::FinishDate,
+                Expr::value(Some(Local::now())),
+            )
             .col_expr(team_member::Column::IsActive, Expr::value(false))
             .filter(team_member::Column::TeamId.eq(team_id))
             .filter(team_member::Column::IsActive.eq(true))
@@ -456,5 +483,4 @@ impl TeamService {
 
         Ok(())
     }
-
 }

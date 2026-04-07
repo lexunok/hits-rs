@@ -9,7 +9,18 @@ use lettre::{
 };
 use tera::{Context, Tera};
 
+fn smtp_disabled() -> bool {
+    std::env::var("DISABLE_SMTP")
+        .map(|value| value == "true" || value == "1")
+        .unwrap_or(false)
+}
+
 pub async fn send_code_to_update_password(code: String, email: String) -> Result<(), Error> {
+    if smtp_disabled() {
+        tracing::debug!("SMTP disabled, skipping password reset email to {}", email);
+        return Ok(());
+    }
+
     let subject = "Код для изменения пароля".to_string();
     let code_email_context = CodeEmailContext {
         code,
@@ -28,6 +39,11 @@ pub async fn send_code_to_update_password(code: String, email: String) -> Result
     Ok(())
 }
 pub async fn send_code_to_update_email(code: String, email: String) -> Result<(), Error> {
+    if smtp_disabled() {
+        tracing::debug!("SMTP disabled, skipping email change code to {}", email);
+        return Ok(());
+    }
+
     let subject = "Код для изменения почты".to_string();
     let code_email_context = CodeEmailContext {
         code,
@@ -51,6 +67,11 @@ pub async fn send_invitation(
     last_name: String,
     email: String,
 ) -> Result<(), Error> {
+    if smtp_disabled() {
+        tracing::debug!("SMTP disabled, skipping invitation email to {}", email);
+        return Ok(());
+    }
+
     let subject = "Приглашение на регистрацию".to_string();
     let link = format!("{}/auth/registration?code={}", GLOBAL_CONFIG.client_url, id);
     let invitation_text = format!(
@@ -84,6 +105,11 @@ pub async fn send_team_invitation(
     last_name: String,
     email: String,
 ) -> Result<(), Error> {
+    if smtp_disabled() {
+        tracing::debug!("SMTP disabled, skipping team invitation email to {}", email);
+        return Ok(());
+    }
+
     let subject = "Приглашение в команду".to_string();
     let link = format!("{}/team/list/{}", GLOBAL_CONFIG.client_url, team_id);
     let invitation_text = format!(
@@ -113,6 +139,11 @@ pub async fn send_message_to_email(
     html: String,
     subject: String,
 ) -> Result<(), Error> {
+    if smtp_disabled() {
+        tracing::debug!("SMTP disabled, skipping email {} to {}", subject, email);
+        return Ok(());
+    }
+
     let mailer: AsyncSmtpTransport<Tokio1Executor> = if cfg!(debug_assertions) {
         let creds = Credentials::new(
             GLOBAL_CONFIG.smtp_user.to_owned(),

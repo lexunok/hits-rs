@@ -1,6 +1,9 @@
 use sea_orm_migration::prelude::*;
 
-use crate::{m20251202_065032_create_user_table::Users, m20260208_190000_create_idea_market_related_tables::Team};
+use crate::{
+    m20251202_065032_create_user_table::Users,
+    m20260208_190000_create_idea_market_related_tables::Team,
+};
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -66,5 +69,5 @@ enum TeamInvitation {
     FirstName,
     LastName,
     CreatedAt,
-    Status
+    Status,
 }

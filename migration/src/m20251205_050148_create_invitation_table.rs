@@ -16,18 +16,14 @@ impl MigrationTrait for Migration {
                             .uuid()
                             .not_null()
                             .primary_key()
-                            .default(Expr::cust("gen_random_uuid()")) 
+                            .default(Expr::cust("gen_random_uuid()")),
                     )
                     .col(
                         ColumnDef::new(Invitation::Roles)
                             .array(ColumnType::String(StringLen::None))
-                            .not_null()
+                            .not_null(),
                     )
-                    .col(
-                        ColumnDef::new(Invitation::Email)
-                            .string()
-                            .not_null()
-                    )
+                    .col(ColumnDef::new(Invitation::Email).string().not_null())
                     .col(
                         ColumnDef::new(Invitation::ExpiryDate)
                             .timestamp_with_time_zone()
