@@ -1,6 +1,6 @@
 use crate::{
     AppState,
-    dtos::{team::{CreateTeamInvitation, CreateTeamRequest, TeamDto, TeamInvitationDto, TeamMarketRequestDto, UpdateTeamRequest}, user::UserDto},
+    dtos::{common::MessageResponse, team::{CreateTeamInvitation, CreateTeamMarketRequest, CreateTeamRequest, MarketTeamRequestDto, TeamDto, TeamInvitationDto, TeamMarketRequestDto, UpdateTeamRequest}, user::UserDto},
     error::AppError,
     services::team::TeamService,
     utils::security::Claims,
@@ -27,6 +27,11 @@ pub fn team_router() -> Router<AppState> {
         .route("/requests/team/{team_id}", get(get_team_requests_by_team))
         .route("/requests/status/{invitation_id}/{new_status}", put(update_team_request_status))
         .route("/market/requests/{team_id}", get(get_team_market_requests))
+        .route("/market/request", post(create_market_request))
+        .route("/market/request/{idea_market_id}", get(get_market_requests_by_idea_market))
+        .route("/market/request/status/{request_id}/{new_status}", put(update_market_request_status))
+        .route("/market/request/{request_id}", delete(delete_annulled_market_request))
+        .route("/market/accept/{idea_market_id}/{team_id}", put(accept_for_idea_market))
         .route("/market/{market_id}", put(set_market_id))
         .route("/members/add/{team_id}/{user_id}", post(add_team_member))
         .route("/members/kick/{team_id}/{user_id}", delete(kick))
@@ -107,6 +112,16 @@ async fn get_team_market_requests(
     Json(team_market_requests)
 }
 
+async fn get_market_requests_by_idea_market(
+    State(state): State<AppState>,
+    _: Claims,
+    Path(idea_market_id): Path<Uuid>,
+) -> Result<Json<Vec<MarketTeamRequestDto>>, AppError> {
+    let team_market_requests =
+        TeamService::get_market_requests_by_idea_market(&state, idea_market_id).await?;
+    Ok(Json(team_market_requests))
+}
+
 #[has_any_role(Admin, TeamOwner, TeamLeader)]
 async fn send_invites_to_users(
     State(state): State<AppState>,
@@ -123,6 +138,17 @@ async fn create_team_request(
     Path(team_id): Path<Uuid>,
 ) -> Result<(), AppError> {
     TeamService::create_team_request(&state, team_id, claims).await
+}
+
+#[has_any_role(Admin, TeamOwner, TeamLeader)]
+async fn create_market_request(
+    State(state): State<AppState>,
+    claims: Claims,
+    Json(payload): Json<CreateTeamMarketRequest>,
+) -> Result<TeamMarketRequestDto, AppError> {
+    let is_admin = claims.roles.contains(&Role::Admin);
+    let request = TeamService::create_market_request(&state, payload, claims.sub, is_admin).await?;
+    Ok(request)
 }
 
 // #[has_any_role(Admin, TeamOwner, TeamLeader)]  ?????
@@ -171,6 +197,42 @@ async fn set_market_id(
     Json(payload): Json<Vec<Uuid>>,
 ) -> Result<(), AppError> {
     TeamService::set_market_id(&state, payload, market_id).await
+}
+
+#[has_any_role(Admin, TeamOwner, TeamLeader, Initiator)]
+async fn update_market_request_status(
+    State(state): State<AppState>,
+    claims: Claims,
+    Path((request_id, new_status)): Path<(Uuid, RequestStatus)>,
+) -> Result<MessageResponse, AppError> {
+    let is_admin = claims.roles.contains(&Role::Admin);
+    TeamService::update_market_request_status(&state, request_id, new_status, claims.sub, is_admin)
+        .await?;
+    Ok(MessageResponse {
+        message: "Статус заявки обновлен".to_string(),
+    })
+}
+
+async fn delete_annulled_market_request(
+    State(state): State<AppState>,
+    _: Claims,
+    Path(request_id): Path<Uuid>,
+) -> Result<MessageResponse, AppError> {
+    TeamService::delete_annulled_market_request(&state, request_id).await?;
+    Ok(MessageResponse {
+        message: "Заявка удалена".to_string(),
+    })
+}
+
+#[has_any_role(Admin, Initiator)]
+async fn accept_for_idea_market(
+    State(state): State<AppState>,
+    claims: Claims,
+    Path((idea_market_id, team_id)): Path<(Uuid, Uuid)>,
+) -> Result<TeamDto, AppError> {
+    let is_admin = claims.roles.contains(&Role::Admin);
+    let team = TeamService::accept_for_idea_market(&state, idea_market_id, team_id, claims.sub, is_admin).await?;
+    Ok(team)
 }
 
 #[has_any_role(Admin, TeamOwner)]

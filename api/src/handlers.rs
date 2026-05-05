@@ -7,6 +7,7 @@ pub mod auth;
 pub mod company;
 pub mod group;
 pub mod idea;
+pub mod idea_market;
 pub mod invitation;
 pub mod market;
 pub mod profile;
@@ -27,6 +28,7 @@ pub fn main_router() -> Router<AppState> {
         .nest("/skill", skill::skill_router())
         .nest("/group", group::group_router())
         .nest("/idea", idea::idea_router())
+        .nest("/idea_market", idea_market::idea_market_router())
         .nest("/rating", rating::rating_router())
         .nest("/market", market::market_router())
         .nest("/team", team::team_router())

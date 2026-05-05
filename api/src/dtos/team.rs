@@ -109,7 +109,29 @@ pub struct TeamMarketRequestDto {
     pub market_id: Uuid,
     pub idea_market_id: Uuid,
     pub name: String,
-    pub letter: String,
+    pub letter: Option<String>,
     pub status: RequestStatus,
     pub created_at: DateTimeLocal,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateTeamMarketRequest {
+    pub team_id: Uuid,
+    pub idea_market_id: Uuid,
+    pub letter: Option<String>,
+}
+
+#[derive(IntoDataResponse, Serialize, Deserialize, FromQueryResult)]
+pub struct MarketTeamRequestDto {
+    pub id: Uuid,
+    pub team_id: Uuid,
+    pub market_id: Uuid,
+    pub idea_market_id: Uuid,
+    pub name: String,
+    pub letter: Option<String>,
+    pub status: RequestStatus,
+    pub created_at: DateTimeLocal,
+    pub members_count: i64,
+    #[sea_orm(skip)]
+    pub skills: Vec<SkillDto>,
 }

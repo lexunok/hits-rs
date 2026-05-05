@@ -2,6 +2,7 @@ pub mod auth;
 pub mod company;
 pub mod group;
 pub mod idea;
+pub mod idea_market;
 pub mod invitation;
 pub mod market;
 pub mod profile;

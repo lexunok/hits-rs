@@ -1,10 +1,12 @@
 use crate::{
     AppState,
     dtos::{
+        idea_market::TeamSkillQueryResult,
         skill::SkillDto,
         team::{
-            CreateTeamInvitation, CreateTeamRequest, TeamDto, TeamInvitationDto,
-            TeamMarketRequestDto, UpdateTeamRequest,
+            CreateTeamInvitation, CreateTeamMarketRequest, CreateTeamRequest,
+            MarketTeamRequestDto, TeamDto, TeamInvitationDto, TeamMarketRequestDto,
+            UpdateTeamRequest,
         },
         user::UserDto,
     },
@@ -14,9 +16,10 @@ use crate::{
 use chrono::Local;
 use entity::{
     idea, idea_market, idea_market_refused, prelude::{
-        IdeaMarket, IdeaMarketRefused, Skill, Team, TeamInvitation, TeamMarketRequest,
+        IdeaMarket, IdeaMarketRefused, Project, Skill, Team, TeamInvitation, TeamMarketRequest,
         TeamMember, TeamRefused, TeamWantedSkill, UserSkill, Users,
-    }, request_status::RequestStatus, role::Role, team, team_invitation, team_member, team_refused, team_wanted_skill
+    }, project_status::ProjectStatus, request_status::RequestStatus, role::Role, team,
+    team_invitation, team_market_request, team_member, team_refused, team_wanted_skill
 };
 
 use sea_orm::{
@@ -32,6 +35,71 @@ use sea_orm::{
 pub struct TeamService;
 
 impl TeamService {
+    async fn get_market_request_team_skills(
+        state: &AppState,
+        team_ids: &[Uuid],
+    ) -> Result<std::collections::HashMap<Uuid, Vec<SkillDto>>, AppError> {
+        if team_ids.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+
+        let rows: Vec<TeamSkillQueryResult> = UserSkill::find()
+            .select_only()
+            .column_as(team_member::Column::TeamId, "team_id")
+            .column_as(entity::skill::Column::Id, "id")
+            .column_as(entity::skill::Column::Name, "name")
+            .column_as(entity::skill::Column::SkillType, "type")
+            .column_as(entity::skill::Column::Confirmed, "confirmed")
+            .column_as(entity::skill::Column::CreatorId, "creator_id")
+            .column_as(entity::skill::Column::UpdaterId, "updater_id")
+            .column_as(entity::skill::Column::DeleterId, "deleter_id")
+            .join(JoinType::InnerJoin, entity::user_skill::Relation::Users.def())
+            .join(JoinType::InnerJoin, entity::users::Relation::TeamMember.def())
+            .join(JoinType::InnerJoin, entity::user_skill::Relation::Skill.def())
+            .filter(team_member::Column::TeamId.is_in(team_ids.iter().copied()))
+            .filter(team_member::Column::FinishDate.is_null())
+            .into_model()
+            .all(&state.conn)
+            .await?;
+
+        let mut result = std::collections::HashMap::<Uuid, Vec<SkillDto>>::new();
+        for row in rows {
+            let skills = result.entry(row.team_id).or_default();
+            if skills.iter().all(|skill| skill.id != row.id) {
+                skills.push(SkillDto {
+                    id: row.id,
+                    name: row.name,
+                    skill_type: row.skill_type,
+                    confirmed: row.confirmed,
+                    creator_id: row.creator_id,
+                    updater_id: row.updater_id,
+                    deleter_id: row.deleter_id,
+                });
+            }
+        }
+
+        Ok(result)
+    }
+
+    async fn ensure_market_team_access(
+        state: &AppState,
+        team_id: Uuid,
+        user_id: Uuid,
+        is_admin: bool,
+    ) -> Result<team::Model, AppError> {
+        let expr: Option<Expr> = if !is_admin {
+            Some(Team::COLUMN.owner_id.eq(user_id).or(Team::COLUMN.leader_id.eq(user_id)))
+        } else {
+            None
+        };
+
+        Team::find_by_id(team_id)
+            .filter(Condition::all().add_option(expr))
+            .one(&state.conn)
+            .await?
+            .ok_or(AppError::Forbidden)
+    }
+
     async fn build_basic_team_query(
         user_id: Uuid,
         filter: Option<Expr>,
@@ -260,6 +328,46 @@ impl TeamService {
             .await
             .unwrap_or_default()
     }
+    pub async fn get_market_requests_by_idea_market(
+        state: &AppState,
+        idea_market_id: Uuid,
+    ) -> Result<Vec<MarketTeamRequestDto>, AppError> {
+        let requests: Vec<MarketTeamRequestDto> = TeamMarketRequest::find()
+            .filter(team_market_request::Column::IdeaMarketId.eq(idea_market_id))
+            .join(JoinType::InnerJoin, team_market_request::Relation::Team.def())
+            .column_as(team::Column::Name, "name")
+            .column_as(
+                Expr::expr(
+                    sea_query::Query::select()
+                        .expr(Expr::val(1).count())
+                        .from(TeamMember)
+                        .and_where(
+                            Expr::col(team_member::Column::TeamId)
+                                .eq(Expr::col((Team, team::Column::Id))),
+                        )
+                        .and_where(Expr::col(team_member::Column::FinishDate).is_null())
+                        .to_owned(),
+                ),
+                "members_count",
+            )
+            .into_model()
+            .all(&state.conn)
+            .await?;
+
+        let team_ids: Vec<Uuid> = requests.iter().map(|request| request.team_id).collect();
+        let skills_by_team = Self::get_market_request_team_skills(state, &team_ids).await?;
+
+        Ok(requests
+            .into_iter()
+            .map(|mut request| {
+                request.skills = skills_by_team
+                    .get(&request.team_id)
+                    .cloned()
+                    .unwrap_or_default();
+                request
+            })
+            .collect())
+    }
     pub async fn create(
         state: &AppState,
         payload: CreateTeamRequest,
@@ -409,6 +517,46 @@ impl TeamService {
         Ok(())
     }
 
+    pub async fn create_market_request(
+        state: &AppState,
+        payload: CreateTeamMarketRequest,
+        user_id: Uuid,
+        is_admin: bool,
+    ) -> Result<TeamMarketRequestDto, AppError> {
+        let team = Self::ensure_market_team_access(state, payload.team_id, user_id, is_admin).await?;
+
+        let idea_market = IdeaMarket::find_by_id(payload.idea_market_id)
+            .one(&state.conn)
+            .await?
+            .ok_or(AppError::NotFound)?;
+
+        if team.market_id != Some(idea_market.market_id) {
+            return Err(AppError::Forbidden);
+        }
+
+        let request = team_market_request::ActiveModel {
+            team_id: Set(payload.team_id),
+            market_id: Set(idea_market.market_id),
+            idea_market_id: Set(payload.idea_market_id),
+            letter: Set(payload.letter),
+            status: Set(RequestStatus::New),
+            ..Default::default()
+        }
+        .insert(&state.conn)
+        .await?;
+
+        Ok(TeamMarketRequestDto {
+            id: request.id,
+            team_id: request.team_id,
+            market_id: request.market_id,
+            idea_market_id: request.idea_market_id,
+            name: team.name,
+            letter: request.letter,
+            status: request.status,
+            created_at: request.created_at.into(),
+        })
+    }
+
     pub async fn add_team_member(
         state: &AppState,
         team_id: Uuid,
@@ -541,6 +689,177 @@ impl TeamService {
             .exec(&state.conn)
             .await?;
         Ok(())
+    }
+    pub async fn update_market_request_status(
+        state: &AppState,
+        request_id: Uuid,
+        new_status: RequestStatus,
+        user_id: Uuid,
+        is_admin: bool,
+    ) -> Result<(), AppError> {
+        let txn = state.conn.begin().await?;
+
+        let request = TeamMarketRequest::find_by_id(request_id)
+            .one(&txn)
+            .await?
+            .ok_or(AppError::NotFound)?;
+
+        let idea_market = IdeaMarket::find_by_id(request.idea_market_id)
+            .one(&txn)
+            .await?
+            .ok_or(AppError::NotFound)?;
+
+        let idea = entity::prelude::Idea::find_by_id(idea_market.idea_id)
+            .one(&txn)
+            .await?
+            .ok_or(AppError::NotFound)?;
+
+        let can_manage_idea = is_admin || idea.initiator_id == user_id;
+        let can_manage_team = is_admin
+            || Team::find_by_id(request.team_id)
+                .filter(
+                    Team::COLUMN
+                        .owner_id
+                        .eq(user_id)
+                        .or(Team::COLUMN.leader_id.eq(user_id)),
+                )
+                .one(&txn)
+                .await?
+                .is_some();
+
+        let mut request = request.into_active_model();
+
+        match new_status {
+            RequestStatus::Canceled => {
+                if !can_manage_idea {
+                    return Err(AppError::Forbidden);
+                }
+
+                let refused_exists = IdeaMarketRefused::find_by_id((request.team_id.clone().take().unwrap(), idea.id))
+                    .one(&txn)
+                    .await?;
+                if refused_exists.is_none() {
+                    idea_market_refused::ActiveModel {
+                        team_id: Set(request.team_id.clone().take().unwrap()),
+                        idea_id: Set(idea.id),
+                    }
+                    .insert(&txn)
+                    .await?;
+                }
+            }
+            RequestStatus::Accepted => {
+                if !can_manage_idea {
+                    return Err(AppError::Forbidden);
+                }
+
+                TeamMarketRequest::update_many()
+                    .col_expr(
+                        team_market_request::Column::Status,
+                        Expr::value(RequestStatus::Annulled),
+                    )
+                    .filter(
+                        team_market_request::Column::Status.eq(RequestStatus::New).and(
+                            team_market_request::Column::TeamId
+                                .eq(request.team_id.clone().take().unwrap())
+                                .or(team_market_request::Column::IdeaMarketId.eq(idea_market.id)),
+                        ),
+                    )
+                    .exec(&txn)
+                    .await?;
+            }
+            RequestStatus::Withdrawn => {
+                if !can_manage_team {
+                    return Err(AppError::Forbidden);
+                }
+            }
+            RequestStatus::Annulled | RequestStatus::New => {
+                if !is_admin {
+                    return Err(AppError::Forbidden);
+                }
+            }
+        }
+
+        request.status = Set(new_status);
+        request.update(&txn).await?;
+
+        txn.commit().await?;
+        Ok(())
+    }
+
+    pub async fn delete_annulled_market_request(
+        state: &AppState,
+        request_id: Uuid,
+    ) -> Result<(), AppError> {
+        let request = TeamMarketRequest::find_by_id(request_id)
+            .one(&state.conn)
+            .await?
+            .ok_or(AppError::NotFound)?;
+
+        if request.status != RequestStatus::Annulled {
+            return Err(AppError::Custom("Заявка не аннулирована".to_string()));
+        }
+
+        TeamMarketRequest::delete_by_id(request_id)
+            .exec(&state.conn)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn accept_for_idea_market(
+        state: &AppState,
+        idea_market_id: Uuid,
+        team_id: Uuid,
+        user_id: Uuid,
+        is_admin: bool,
+    ) -> Result<TeamDto, AppError> {
+        let active_project = Project::find()
+            .filter(entity::project::Column::TeamId.eq(team_id))
+            .filter(
+                entity::project::Column::Status
+                    .is_in([ProjectStatus::Active, ProjectStatus::Paused]),
+            )
+            .one(&state.conn)
+            .await?;
+
+        if active_project.is_some() {
+            return Err(AppError::Custom("Данная команда уже занята".to_string()));
+        }
+
+        let txn = state.conn.begin().await?;
+
+        let idea_market = IdeaMarket::find_by_id(idea_market_id)
+            .join(JoinType::InnerJoin, idea_market::Relation::Idea.def())
+            .filter(
+                Condition::all().add_option((!is_admin).then_some(
+                    idea::Column::InitiatorId.eq(user_id),
+                )),
+            )
+            .one(&txn)
+            .await?
+            .ok_or(if is_admin {
+                AppError::NotFound
+            } else {
+                AppError::Forbidden
+            })?;
+
+        let mut idea_market = idea_market.into_active_model();
+        idea_market.team_id = Set(Some(team_id));
+        idea_market.status = Set(entity::idea_market_status::IdeaMarketStatus::RecruitmentIsClosed);
+        idea_market.update(&txn).await?;
+
+        let mut team = Team::find_by_id(team_id)
+            .one(&txn)
+            .await?
+            .ok_or(AppError::NotFound)?
+            .into_active_model();
+
+        team.has_active_project = Set(true);
+        team.update(&txn).await?;
+
+        txn.commit().await?;
+
+        Self::get_one(state, team_id, user_id).await
     }
     pub async fn update_team_leader(
         state: &AppState,

@@ -182,6 +182,24 @@ pub async fn seed_team_wanted_skill(
         .context("failed to insert test team wanted skill")
 }
 
+pub async fn seed_team_invitation(
+    conn: &DatabaseConnection,
+    user_id: sea_orm::prelude::Uuid,
+    team_id: sea_orm::prelude::Uuid,
+) -> anyhow::Result<entity::team_invitation::Model> {
+    let invitation = entity::team_invitation::ActiveModel {
+        user_id: Set(user_id),
+        team_id: Set(team_id),
+        status: Set(entity::request_status::RequestStatus::New),
+        ..Default::default()
+    };
+
+    invitation
+        .insert(conn)
+        .await
+        .context("failed to insert test team invitation")
+}
+
 pub async fn seed_user_skill(
     conn: &DatabaseConnection,
     user_id: sea_orm::prelude::Uuid,

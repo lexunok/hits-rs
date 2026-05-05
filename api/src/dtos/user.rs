@@ -22,7 +22,7 @@ impl From<users::ModelEx> for UserDto {
     }
 }
 
-#[derive(IntoDataResponse, Debug, Serialize, Deserialize, Default, DerivePartialModel)]
+#[derive(IntoDataResponse, Debug, Serialize, Deserialize, Default, Clone, DerivePartialModel)]
 #[sea_orm(entity = "entity::users::Entity")]
 pub struct UserDto {
     pub id: Uuid,
