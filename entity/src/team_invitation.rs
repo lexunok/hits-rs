@@ -17,6 +17,7 @@ pub struct Model {
     pub first_name: String,
     pub last_name: String,
     pub status: RequestStatus,
+    pub is_request: bool,
     pub created_at: DateTimeWithTimeZone,
     #[sea_orm(
         belongs_to,

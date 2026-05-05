@@ -34,6 +34,7 @@ impl MigrationTrait for Migration {
                     )
                     .col(ColumnDef::new(Team::OwnerId).uuid().not_null())
                     .col(ColumnDef::new(Team::LeaderId).uuid())
+                    .col(ColumnDef::new(Team::MarketId).uuid())
                     .col(
                         ColumnDef::new(Team::HasActiveProject)
                             .boolean()
@@ -443,6 +444,7 @@ pub enum Team {
     CreatedAt,
     OwnerId,
     LeaderId,
+    MarketId,
     HasActiveProject,
     IsDeleted,
 }

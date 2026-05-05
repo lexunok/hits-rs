@@ -28,6 +28,7 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(TeamInvitation::Email).text().not_null())
                     .col(ColumnDef::new(TeamInvitation::FirstName).text().not_null())
                     .col(ColumnDef::new(TeamInvitation::LastName).text().not_null())
+                    .col(ColumnDef::new(TeamInvitation::IsRequest).boolean().not_null().default(false))
                     .col(
                         ColumnDef::new(TeamInvitation::Status)
                             .string()
@@ -69,5 +70,6 @@ enum TeamInvitation {
     FirstName,
     LastName,
     CreatedAt,
+    IsRequest,
     Status,
 }

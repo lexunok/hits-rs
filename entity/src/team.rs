@@ -15,6 +15,7 @@ pub struct Model {
     pub is_closed: bool,
     pub owner_id: Uuid,
     pub leader_id: Option<Uuid>,
+    pub market_id: Option<Uuid>,
     pub has_active_project: bool,
     pub is_deleted: bool,
 

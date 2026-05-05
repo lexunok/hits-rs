@@ -11,17 +11,12 @@ use crate::{
     error::AppError,
     utils::{security::Claims, smtp::send_team_invitation},
 };
-use chrono::{DateTime, Local, NaiveDateTime};
+use chrono::Local;
 use entity::{
-    idea, idea_market, idea_market_refused,
-    prelude::{
-        Idea, IdeaMarket, IdeaMarketRefused, Skill, Team, TeamInvitation, TeamMarketRequest,
+    idea, idea_market, idea_market_refused, prelude::{
+        IdeaMarket, IdeaMarketRefused, Skill, Team, TeamInvitation, TeamMarketRequest,
         TeamMember, TeamRefused, TeamWantedSkill, UserSkill, Users,
-    },
-    role::Role,
-    team,
-    team_invitation::{self, ActiveModel},
-    team_market_request, team_member, team_wanted_skill,
+    }, request_status::RequestStatus, role::Role, team, team_invitation, team_member, team_refused, team_wanted_skill
 };
 
 use sea_orm::{
@@ -129,10 +124,6 @@ impl TeamService {
             .unwrap_or_default()
     }
     pub async fn get_all_my(state: &AppState, user_id: Uuid, idea_id: Uuid) -> Vec<TeamDto> {
-        // Здесь была логика что у TeamDto ставилось IsAcceptedToIdea если у него был активный проект или на паузе
-        // Мне показалось что это тоже самое что поле team.has_active_project
-        // В таком случае нужно будет при создании проекта не забыть обновить это поле у модели команды на true
-        // Либо будет понятно почему было сделано так либо это был баг
         Self::build_basic_team_query(
             user_id,
             Some(
@@ -236,6 +227,7 @@ impl TeamService {
     ) -> Vec<TeamInvitationDto> {
         TeamInvitation::find()
             .filter(TeamInvitation::COLUMN.user_id.eq(user_id))
+            .filter(team_invitation::Column::IsRequest.eq(false))
             .into_partial_model::<TeamInvitationDto>()
             .all(&state.conn)
             .await
@@ -244,9 +236,11 @@ impl TeamService {
     pub async fn get_team_invitations_by_team(
         state: &AppState,
         team_id: Uuid,
+        is_request: bool,
     ) -> Vec<TeamInvitationDto> {
         TeamInvitation::find()
             .filter(TeamInvitation::COLUMN.team_id.eq(team_id))
+            .filter(team_invitation::Column::IsRequest.eq(is_request))
             .into_partial_model::<TeamInvitationDto>()
             .all(&state.conn)
             .await
@@ -380,7 +374,6 @@ impl TeamService {
             .exec_with_returning(&state.conn)
             .await?;
 
-        // Я предположил что отправляемый email это receiver
         for i in &invitations {
             send_team_invitation(
                 team.id.to_string(),
@@ -397,18 +390,19 @@ impl TeamService {
 
         Ok(())
     }
-    // Модели надо различать
     pub async fn create_team_request(
         state: &AppState,
         team_id: Uuid,
         claims: Claims,
     ) -> Result<(), AppError> {
+            //Нужна проверка что я могу добавить наверное
         team_invitation::ActiveModel::builder()
             .set_email(claims.email)
             .set_first_name(claims.first_name)
             .set_last_name(claims.last_name)
             .set_team_id(team_id)
             .set_user_id(claims.sub)
+            .set_is_request(true)
             .insert(&state.conn)
             .await?;
 
@@ -420,6 +414,7 @@ impl TeamService {
         team_id: Uuid,
         user_id: Uuid,
     ) -> Result<UserDto, AppError> {
+        //Нужна проверка что я могу добавить наверное
         TeamMember::insert(team_member::ActiveModel {
             team_id: Set(team_id),
             user_id: Set(user_id),
@@ -482,5 +477,272 @@ impl TeamService {
         txn.commit().await?;
 
         Ok(())
+    }
+    pub async fn kick(
+        state: &AppState,
+        team_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<(), AppError> {
+        let now = Local::now();
+
+        let txn = state.conn.begin().await?;
+
+        //Можно ли удалять если ты владелец другой команды или вообще учатник обычный?
+        TeamMember::update_many()
+            .col_expr(
+                team_member::Column::FinishDate,
+                Expr::value(Some(now)),
+            )
+            .col_expr(team_member::Column::IsActive, Expr::value(false))
+            .filter(team_member::Column::TeamId.eq(team_id))
+            .filter(team_member::Column::UserId.eq(user_id))
+            .exec(&txn)
+            .await?;
+
+        let refused = team_refused::ActiveModel {
+            user_id: Set(user_id),
+            team_id: Set(team_id)
+        };
+
+        refused.insert(&txn).await?;
+        // ТАКЖЕ ОБНОВЛЯЮ PROJECT_MEMBER
+
+        txn.commit().await?;
+
+        Ok(())
+    }
+
+    pub async fn leave(
+        state: &AppState,
+        team_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<(), AppError> {
+        //Может еще надо из участников проекта удалять?
+        TeamMember::update_many()
+            .col_expr(
+                team_member::Column::FinishDate,
+                Expr::value(Some(Local::now())),
+            )
+            .col_expr(team_member::Column::IsActive, Expr::value(false))
+            .filter(team_member::Column::TeamId.eq(team_id))
+            .filter(team_member::Column::UserId.eq(user_id))
+            .exec(&state.conn)
+            .await?;
+        Ok(())
+    }
+    pub async fn set_market_id(
+        state: &AppState,
+        team_ids: Vec<Uuid>,
+        market_id: Uuid,
+    ) -> Result<(), AppError> {
+        Team::update_many()
+            .col_expr(team::Column::MarketId, Expr::value(Some(market_id)))
+            .filter(team::Column::Id.is_in(team_ids))
+            .exec(&state.conn)
+            .await?;
+        Ok(())
+    }
+    pub async fn update_team_leader(
+        state: &AppState,
+        team_id: Uuid,
+        user_id: Uuid,
+        is_admin: bool
+    ) -> Result<(), AppError> {
+        let expr: Option<Expr> = if !is_admin {
+            Some(Team::COLUMN.owner_id.eq(user_id))
+        } else {
+            None
+        };
+
+        let mut team = Team::find_by_id(team_id)
+            .filter(Condition::all().add_option(expr))
+            .one(&state.conn)
+            .await?
+            .ok_or(AppError::Forbidden)?
+            .into_active_model();
+
+        team.leader_id = Set(Some(user_id));
+
+        team.update(&state.conn).await?;
+
+        // Если есть проект нужно нзн роли там поменять
+        // Мб актуальные роли пользователей менять
+
+        Ok(())
+    }
+
+    pub async fn update_team_invitation_status(
+        state: &AppState,
+        invitation_id: Uuid,
+        new_status: RequestStatus,
+        user_id: Uuid,
+        is_admin: bool
+    ) -> Result<TeamInvitationDto, AppError> {
+
+        let txn = state.conn.begin().await?;
+
+        let invitation = TeamInvitation::find_by_id(invitation_id)
+            .filter(team_invitation::Column::IsRequest.eq(false))
+            .one(&txn)
+            .await?
+            .ok_or(AppError::NotFound)?;
+
+        let do_update = async |invitation: team_invitation::Model| -> Result<TeamInvitationDto, AppError> {
+            let mut invitation_active = invitation.clone().into_active_model();
+            invitation_active.status = Set(new_status.clone());
+            invitation_active.update(&txn).await?;
+            
+            Ok(TeamInvitationDto {
+                id: invitation.id,
+                email: invitation.email,
+                user_id: invitation.user_id,
+                first_name: invitation.first_name,
+                last_name: invitation.last_name,
+                team_id: invitation.team_id,
+                created_at: invitation.created_at.into(),
+                status: new_status.clone()
+            })
+        }; 
+
+        let result = match new_status {
+            RequestStatus::Accepted => {
+                if invitation.user_id == user_id || is_admin {
+                    TeamInvitation::update_many()
+                        .col_expr(team_invitation::Column::Status, Expr::value(RequestStatus::Annulled))
+                        .filter(team_invitation::Column::UserId.eq(invitation.user_id))
+                        .filter(team_invitation::Column::IsRequest.eq(false))
+                        .exec(&txn)
+                        .await?;
+                    do_update(invitation).await
+                } else {
+                    Err(AppError::Forbidden)
+                }
+            },
+            RequestStatus::Canceled => {
+                if invitation.user_id == user_id || is_admin {
+                    do_update(invitation).await
+                } else {
+                    Err(AppError::Forbidden)
+                }
+            },
+            RequestStatus::Withdrawn => {
+                let expr: Option<Expr> = if !is_admin {
+                    Some(Team::COLUMN.owner_id.eq(user_id).or(Team::COLUMN.leader_id.eq(user_id)))
+                } else {
+                    None
+                };
+                let _ = Team::find_by_id(invitation.team_id)
+                    .filter(Condition::all().add_option(expr))
+                    .one(&state.conn)
+                    .await?
+                    .ok_or(AppError::Forbidden)?;
+
+                do_update(invitation).await
+            },
+            RequestStatus::Annulled | RequestStatus::New => {
+                if is_admin {
+                    do_update(invitation).await
+                } else {
+                    Err(AppError::Forbidden)
+                }
+            },
+        };
+
+        txn.commit().await?;
+
+        result
+    }
+    pub async fn update_team_request_status(
+        state: &AppState,
+        invitation_id: Uuid,
+        new_status: RequestStatus,
+        user_id: Uuid,
+        is_admin: bool
+    ) -> Result<TeamInvitationDto, AppError> {
+
+        let txn = state.conn.begin().await?;
+
+        let invitation = TeamInvitation::find_by_id(invitation_id)
+            .filter(team_invitation::Column::IsRequest.eq(true))
+            .one(&txn)
+            .await?
+            .ok_or(AppError::NotFound)?;
+
+        let do_update = async |invitation: team_invitation::Model| -> Result<TeamInvitationDto, AppError> {
+            let mut invitation_active = invitation.clone().into_active_model();
+            invitation_active.status = Set(new_status.clone());
+            invitation_active.update(&txn).await?;
+            
+            Ok(TeamInvitationDto {
+                id: invitation.id,
+                email: invitation.email,
+                user_id: invitation.user_id,
+                first_name: invitation.first_name,
+                last_name: invitation.last_name,
+                team_id: invitation.team_id,
+                created_at: invitation.created_at.into(),
+                status: new_status.clone()
+            })
+        }; 
+
+        let result = match new_status {
+            RequestStatus::Accepted => {
+                let expr: Option<Expr> = if !is_admin {
+                    Some(Team::COLUMN.owner_id.eq(user_id).or(Team::COLUMN.leader_id.eq(user_id)))
+                } else {
+                    None
+                };
+                let _ = Team::find_by_id(invitation.team_id)
+                    .filter(Condition::all().add_option(expr))
+                    .one(&state.conn)
+                    .await?
+                    .ok_or(AppError::Forbidden)?;
+
+                TeamInvitation::update_many()
+                    .col_expr(team_invitation::Column::Status, Expr::value(RequestStatus::Annulled))
+                    .filter(team_invitation::Column::UserId.eq(invitation.user_id))
+                    .filter(team_invitation::Column::IsRequest.eq(true))
+                    .exec(&txn)
+                    .await?;
+                do_update(invitation).await
+            },
+            RequestStatus::Canceled => {
+                let expr: Option<Expr> = if !is_admin {
+                    Some(Team::COLUMN.owner_id.eq(user_id).or(Team::COLUMN.leader_id.eq(user_id)))
+                } else {
+                    None
+                };
+                let _ = Team::find_by_id(invitation.team_id)
+                    .filter(Condition::all().add_option(expr))
+                    .one(&state.conn)
+                    .await?
+                    .ok_or(AppError::Forbidden)?;
+
+                team_refused::ActiveModel {
+                    user_id: Set(user_id),
+                    team_id: Set(invitation.team_id)
+                }.insert(&txn).await?;
+                
+                do_update(invitation).await
+            },
+            RequestStatus::Withdrawn => {
+                if invitation.user_id == user_id || is_admin {
+                    do_update(invitation).await
+                } else {
+                    Err(AppError::Forbidden)
+                }
+            },
+            RequestStatus::Annulled | RequestStatus::New => {
+                if is_admin {
+                    do_update(invitation).await
+                } else {
+                    Err(AppError::Forbidden)
+                }
+            },
+        };
+
+        txn.commit().await?;
+
+        result
     }
 }
