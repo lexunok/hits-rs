@@ -20,6 +20,10 @@ pub enum ProjectStatus {
     Active,
     #[sea_orm(string_value = "PAUSED")]
     Paused,
+    #[sea_orm(string_value = "DONE")]
+    Done,
+    #[sea_orm(string_value = "DELETED")]
+    Deleted,
     #[sea_orm(string_value = "FINISHED")]
     Finished,
 }

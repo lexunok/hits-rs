@@ -20,6 +20,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260313_145509_create_team_refused::Migration),
             Box::new(m20260316_132621_create_idea_market_refused_table::Migration),
             Box::new(m20260331_054001_create_team_invitation::Migration),
+            Box::new(m20260505_120000_create_project_domain_tables::Migration),
         ]
     }
 }
@@ -37,3 +38,4 @@ mod m20260208_190000_create_idea_market_related_tables;
 mod m20260313_145509_create_team_refused;
 mod m20260316_132621_create_idea_market_refused_table;
 mod m20260331_054001_create_team_invitation;
+mod m20260505_120000_create_project_domain_tables;

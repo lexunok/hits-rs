@@ -3,7 +3,7 @@ use crate::{
     config::GLOBAL_CONFIG,
     dtos::{
         auth::{EmailResetPayload, PasswordResetPayload},
-        profile::{ProfileDto, ProfileUpdatePayload},
+        profile::{ProfileDto, ProfileIdeaDto, ProfileUpdatePayload, TeamExperienceDto},
     },
     error::AppError,
     utils::{
@@ -15,14 +15,16 @@ use argon2::password_hash::rand_core::{OsRng, RngCore};
 use axum::body::Bytes;
 use chrono::{Duration, Local};
 use entity::{
-    prelude::{Skill, Users, VerificationCode},
+    idea, team, team_member,
+    prelude::{Idea, Skill, TeamMember, Users, VerificationCode},
     user_skill, verification_code,
 };
 use image::ImageFormat;
 use sea_orm::{
     ActiveModelTrait,
     ActiveValue::Set,
-    ColumnTrait, EntityTrait, IntoActiveModel, ModelTrait, QueryFilter, TransactionTrait,
+    ColumnTrait, EntityTrait, IntoActiveModel, JoinType, ModelTrait, QueryFilter, RelationTrait,
+    QuerySelect, TransactionTrait,
     prelude::{Expr, Uuid},
 };
 use std::path::PathBuf;
@@ -36,13 +38,50 @@ impl ProfileService {
             .one(&state.conn)
             .await?
             .ok_or(AppError::NotFound)?;
+
         let skills = user
             .find_related(Skill)
             .into_partial_model()
             .all(&state.conn)
             .await
             .unwrap_or_default();
-        // И ДРУГИЕ ПОЛЯ ПРОФИЛЯ
+
+        // Идеи, где пользователь является инициатором
+        let ideas: Vec<ProfileIdeaDto> = Idea::find()
+            .filter(idea::Column::InitiatorId.eq(user_id))
+            .all(&state.conn)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|i| ProfileIdeaDto {
+                id: i.id,
+                name: i.name,
+                status: i.status,
+            })
+            .collect();
+
+        // История участия в командах (все TeamMember записи, включая завершённые)
+        let team_members = TeamMember::find()
+            .filter(team_member::Column::UserId.eq(user_id))
+            .join(JoinType::InnerJoin, team_member::Relation::Team.def())
+            .column_as(team::Column::Name, "team_name")
+            .column_as(team::Column::HasActiveProject, "has_active_project")
+            .into_model::<TeamExperienceRow>()
+            .all(&state.conn)
+            .await
+            .unwrap_or_default();
+
+        let teams: Vec<TeamExperienceDto> = team_members
+            .into_iter()
+            .map(|r| TeamExperienceDto {
+                team_id: r.team_id,
+                team_name: r.team_name,
+                start_date: r.join_date,
+                finish_date: r.finish_date,
+                has_active_project: r.has_active_project,
+            })
+            .collect();
+
         Ok(ProfileDto {
             id: user.id,
             email: user.email,
@@ -53,6 +92,8 @@ impl ProfileService {
             roles: user.roles,
             created_at: user.created_at.into(),
             skills,
+            ideas,
+            teams,
         })
     }
     pub async fn update_skills(
@@ -283,4 +324,15 @@ impl ProfileService {
         }
         Ok(())
     }
+}
+
+// ─── Query result structs ────────────────────────────────────────────────────
+
+#[derive(Debug, sea_orm::FromQueryResult)]
+struct TeamExperienceRow {
+    pub team_id: Uuid,
+    pub team_name: String,
+    pub join_date: sea_orm::prelude::DateTimeWithTimeZone,
+    pub finish_date: Option<sea_orm::prelude::DateTimeWithTimeZone>,
+    pub has_active_project: bool,
 }

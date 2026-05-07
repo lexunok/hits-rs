@@ -14,17 +14,6 @@ use std::collections::HashMap;
 pub struct SkillService;
 
 impl SkillService {
-    // public Flux<SkillDTO> getSkillsByUsers(List<UserDTO> users) {
-    //     return getSkillsByList(users.stream().map(UserDTO::getId).toList());
-    // }
-
-    // public Flux<SkillDTO> getSkillsByInvitations(List<TeamInvitation> users) {
-    //     return getSkillsByList(users.stream().map(TeamInvitation::getUserId).toList());
-    // }
-
-    // public Flux<SkillDTO> getSkillsByRequests(List<TeamRequest> users) {
-    //     return getSkillsByList(users.stream().map(TeamRequest::getUserId).toList());
-    // }
     pub async fn get_all(state: &AppState) -> Vec<SkillDto> {
         Skill::find()
             .filter(skill::Column::DeletedAt.is_null())

@@ -17,6 +17,7 @@ use axum::{
     routing::{delete, get, post, put},
 };
 use entity::{idea_market_status::IdeaMarketStatus, role::Role};
+
 use macros::has_any_role;
 use sea_orm::prelude::Uuid;
 
@@ -91,7 +92,7 @@ async fn get_idea_market_by_id(
 
 async fn get_advertisements_by_idea_market(
     State(state): State<AppState>,
-    _: Claims,
+    _claims: Claims,
     Path(idea_market_id): Path<Uuid>,
 ) -> Result<Json<Vec<IdeaMarketAdvertisementDto>>, AppError> {
     let items = IdeaMarketService::get_advertisements(&state, idea_market_id).await?;
@@ -203,7 +204,6 @@ async fn update_idea_market_status(
     claims: Claims,
     Path((idea_market_id, status)): Path<(Uuid, IdeaMarketStatus)>,
 ) -> Result<MessageResponse, AppError> {
-    let _ = claims;
     IdeaMarketService::update_status(&state, idea_market_id, status).await?;
     Ok(MessageResponse {
         message: "Статус идеи обновлен".to_string(),

@@ -106,27 +106,4 @@ async fn confirm_and_update_email(
     })
 }
 
-// #[has_any_role(Admin, TeamOwner)]
-// async fn change_team_leader(
-//     State(state): State<AppState>,
-//     claims: Claims,
-//     Path(old_team_leader_id): Path<Uuid>,
-//     Path(new_team_leader_id): Path<Uuid>,
-// ) -> Result<impl IntoResponse, GlobalError> {
 
-//     Ok(Json(CustomMessage {
-//         message: "Успешное обновление профиля".to_string(),
-//     }))
-// }
-// public void changeTeamLeader(String teamLeaderId, String userId){
-//     User oldTeamLeader = userRepository.findById(teamLeaderId).orElseThrow(() -> new NotFoundException("Not found"));
-//     oldTeamLeader.getRoles().remove(Role.TEAM_LEADER);
-//     profileClient.checkUser(mapper.map(userRepository.save(oldTeamLeader), UserDTO.class));
-//     template.opsForHash().delete("user", oldTeamLeader.getEmail().toLowerCase());
-//     User newTeamLeader = userRepository.findById(userId).orElseThrow(() -> new NotFoundException("Not found"));
-//     if (newTeamLeader.getRoles().stream().noneMatch(role -> role.equals(Role.TEAM_LEADER))) {
-//         newTeamLeader.getRoles().add(Role.TEAM_LEADER);
-//         profileClient.checkUser(mapper.map(userRepository.save(newTeamLeader), UserDTO.class));
-//         template.opsForHash().delete("user", newTeamLeader.getEmail().toLowerCase());
-//     }
-// }

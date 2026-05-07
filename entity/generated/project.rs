@@ -15,6 +15,10 @@ pub struct Model {
     pub team_id: Uuid,
     pub status: String,
     pub created_at: DateTimeWithTimeZone,
+    #[sea_orm(column_type = "Text", nullable)]
+    pub report: Option<String>,
+    pub start_date: Date,
+    pub finish_date: Option<Date>,
     #[sea_orm(
         belongs_to,
         from = "idea_id",
@@ -23,6 +27,14 @@ pub struct Model {
         on_delete = "Cascade"
     )]
     pub idea: HasOne<super::idea::Entity>,
+    #[sea_orm(has_many)]
+    pub project_members: HasMany<super::project_member::Entity>,
+    #[sea_orm(has_many)]
+    pub sprints: HasMany<super::sprint::Entity>,
+    #[sea_orm(has_many)]
+    pub sprint_marks: HasMany<super::sprint_mark::Entity>,
+    #[sea_orm(has_many)]
+    pub tasks: HasMany<super::task::Entity>,
     #[sea_orm(
         belongs_to,
         from = "team_id",
@@ -31,6 +43,8 @@ pub struct Model {
         on_delete = "Cascade"
     )]
     pub team: HasOne<super::team::Entity>,
+    #[sea_orm(has_many, via = "project_marks")]
+    pub users: HasMany<super::users::Entity>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}

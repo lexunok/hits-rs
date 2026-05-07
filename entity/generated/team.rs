@@ -14,6 +14,7 @@ pub struct Model {
     pub created_at: DateTimeWithTimeZone,
     pub owner_id: Uuid,
     pub leader_id: Option<Uuid>,
+    pub market_id: Option<Uuid>,
     pub has_active_project: bool,
     pub is_deleted: bool,
     pub is_closed: bool,
@@ -21,6 +22,8 @@ pub struct Model {
     pub idea_markets: HasMany<super::idea_market::Entity>,
     #[sea_orm(has_one)]
     pub project: HasOne<super::project::Entity>,
+    #[sea_orm(has_many)]
+    pub project_members: HasMany<super::project_member::Entity>,
     #[sea_orm(has_many)]
     pub team_invitations: HasMany<super::team_invitation::Entity>,
     #[sea_orm(has_many)]

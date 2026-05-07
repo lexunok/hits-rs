@@ -15,11 +15,12 @@ use crate::{
 };
 use chrono::Local;
 use entity::{
-    idea, idea_market, idea_market_refused, prelude::{
-        IdeaMarket, IdeaMarketRefused, Project, Skill, Team, TeamInvitation, TeamMarketRequest,
-        TeamMember, TeamRefused, TeamWantedSkill, UserSkill, Users,
-    }, project_status::ProjectStatus, request_status::RequestStatus, role::Role, team,
-    team_invitation, team_market_request, team_member, team_refused, team_wanted_skill
+    idea, idea_market, idea_market_refused, project, project_member, prelude::{
+        IdeaMarket, IdeaMarketRefused, Project, ProjectMember, Skill, Team, TeamInvitation,
+        TeamMarketRequest, TeamMember, TeamRefused, TeamWantedSkill, UserSkill, Users,
+    }, project_role::ProjectRole, project_status::ProjectStatus, request_status::RequestStatus,
+    role::Role, team, team_invitation, team_market_request, team_member, team_refused,
+    team_wanted_skill
 };
 
 use sea_orm::{
@@ -562,16 +563,40 @@ impl TeamService {
         team_id: Uuid,
         user_id: Uuid,
     ) -> Result<UserDto, AppError> {
-        //Нужна проверка что я могу добавить наверное
+        let txn = state.conn.begin().await?;
+
         TeamMember::insert(team_member::ActiveModel {
             team_id: Set(team_id),
             user_id: Set(user_id),
             ..Default::default()
         })
-        .exec(&state.conn)
+        .exec(&txn)
         .await?;
 
-        // ЕСЛИ ЕСТЬ ПРОЕКТ НУЖНО ЕЩЕ И В УЧАСТНИКИ ПРОЕКТА ДОБАВИТЬ
+        // Если у команды есть активный проект — добавляем пользователя в project_member
+        let active_project = Project::find()
+            .filter(project::Column::TeamId.eq(team_id))
+            .filter(
+                project::Column::Status
+                    .is_in([ProjectStatus::Active, ProjectStatus::Paused]),
+            )
+            .one(&txn)
+            .await?;
+
+        if let Some(proj) = active_project {
+            project_member::ActiveModel {
+                project_id: Set(proj.id),
+                user_id: Set(user_id),
+                team_id: Set(Some(team_id)),
+                project_role: Set(ProjectRole::Member),
+                start_date: Set(Local::now().date_naive()),
+                finish_date: Set(None),
+            }
+            .insert(&txn)
+            .await?;
+        }
+
+        txn.commit().await?;
 
         let user: Vec<UserDto> = Users::load()
             .filter_by_id(user_id)
@@ -632,28 +657,47 @@ impl TeamService {
         user_id: Uuid,
     ) -> Result<(), AppError> {
         let now = Local::now();
+        let today = now.date_naive();
 
         let txn = state.conn.begin().await?;
 
-        //Можно ли удалять если ты владелец другой команды или вообще учатник обычный?
         TeamMember::update_many()
-            .col_expr(
-                team_member::Column::FinishDate,
-                Expr::value(Some(now)),
-            )
+            .col_expr(team_member::Column::FinishDate, Expr::value(Some(now)))
             .col_expr(team_member::Column::IsActive, Expr::value(false))
             .filter(team_member::Column::TeamId.eq(team_id))
             .filter(team_member::Column::UserId.eq(user_id))
             .exec(&txn)
             .await?;
 
-        let refused = team_refused::ActiveModel {
+        team_refused::ActiveModel {
             user_id: Set(user_id),
-            team_id: Set(team_id)
-        };
+            team_id: Set(team_id),
+        }
+        .insert(&txn)
+        .await?;
 
-        refused.insert(&txn).await?;
-        // ТАКЖЕ ОБНОВЛЯЮ PROJECT_MEMBER
+        // Закрываем участие в активном проекте команды
+        let active_project = Project::find()
+            .filter(project::Column::TeamId.eq(team_id))
+            .filter(
+                project::Column::Status
+                    .is_in([ProjectStatus::Active, ProjectStatus::Paused]),
+            )
+            .one(&txn)
+            .await?;
+
+        if let Some(proj) = active_project {
+            ProjectMember::update_many()
+                .col_expr(
+                    project_member::Column::FinishDate,
+                    Expr::value(Some(today)),
+                )
+                .filter(project_member::Column::ProjectId.eq(proj.id))
+                .filter(project_member::Column::UserId.eq(user_id))
+                .filter(project_member::Column::FinishDate.is_null())
+                .exec(&txn)
+                .await?;
+        }
 
         txn.commit().await?;
 

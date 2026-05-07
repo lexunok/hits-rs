@@ -17,6 +17,7 @@ pub struct Model {
     pub first_name: String,
     #[sea_orm(column_type = "Text")]
     pub last_name: String,
+    pub is_request: bool,
     pub status: String,
     pub created_at: DateTimeWithTimeZone,
     #[sea_orm(

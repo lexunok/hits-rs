@@ -35,21 +35,6 @@ use sea_orm::{
 pub struct IdeaMarketService;
 
 impl IdeaMarketService {
-    fn build_user(
-        id: Uuid,
-        email: String,
-        first_name: String,
-        last_name: String,
-    ) -> UserDto {
-        UserDto {
-            id,
-            email,
-            first_name,
-            last_name,
-            ..Default::default()
-        }
-    }
-
     async fn get_team_map(
         state: &AppState,
         team_ids: &[Uuid],
@@ -143,14 +128,14 @@ impl IdeaMarketService {
         Ok(teams
             .into_iter()
             .map(|team| {
-                let owner = Self::build_user(
+                let owner = UserDto::from_parts(
                     team.owner_id,
                     team.owner_email.clone(),
                     team.owner_first_name.clone(),
                     team.owner_last_name.clone(),
                 );
 
-                let leader = Self::build_user(
+                let leader = UserDto::from_parts(
                     team.leader_id.unwrap_or(team.owner_id),
                     team.leader_email
                         .clone()
@@ -299,7 +284,7 @@ impl IdeaMarketService {
             .map(|row| IdeaMarketDto {
                 id: row.id,
                 idea_id: row.idea_id,
-                initiator: Self::build_user(
+                initiator: UserDto::from_parts(
                     row.initiator_id,
                     row.initiator_email,
                     row.initiator_first_name,
@@ -440,7 +425,7 @@ impl IdeaMarketService {
                 created_at: row.created_at,
                 text: row.text,
                 checked_by: row.checked_by,
-                sender: Self::build_user(
+                sender: UserDto::from_parts(
                     row.sender_id,
                     row.sender_email,
                     row.sender_first_name,

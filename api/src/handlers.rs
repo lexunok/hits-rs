@@ -11,10 +11,15 @@ pub mod idea_market;
 pub mod invitation;
 pub mod market;
 pub mod profile;
+pub mod project;
 pub mod rating;
 pub mod skill;
 pub mod team;
 pub mod user;
+pub mod sprint;
+pub mod tag;
+pub mod task;
+pub mod task_movement_log;
 
 pub fn main_router() -> Router<AppState> {
     let avatar_dir = PathBuf::from(GLOBAL_CONFIG.avatar_path.clone());
@@ -31,6 +36,11 @@ pub fn main_router() -> Router<AppState> {
         .nest("/idea_market", idea_market::idea_market_router())
         .nest("/rating", rating::rating_router())
         .nest("/market", market::market_router())
+        .nest("/project", project::project_router())
+        .nest("/sprint", sprint::sprint_router())
+        .nest("/tag", tag::tag_router())
+        .nest("/task", task::task_router())
+        .nest("/log", task_movement_log::task_movement_log_router())
         .nest("/team", team::team_router())
         .nest_service("/images/avatar", ServeDir::new(avatar_dir))
 }

@@ -22,7 +22,13 @@ pub struct Model {
     #[sea_orm(has_many)]
     pub idea_market_advertisements: HasMany<super::idea_market_advertisement::Entity>,
     #[sea_orm(has_many)]
+    pub project_members: HasMany<super::project_member::Entity>,
+    #[sea_orm(has_many)]
     pub ratings: HasMany<super::rating::Entity>,
+    #[sea_orm(has_many)]
+    pub sprint_marks: HasMany<super::sprint_mark::Entity>,
+    #[sea_orm(has_many)]
+    pub task_histories: HasMany<super::task_history::Entity>,
     #[sea_orm(has_many)]
     pub team_invitations: HasMany<super::team_invitation::Entity>,
     #[sea_orm(has_many)]
@@ -37,6 +43,8 @@ pub struct Model {
     pub ideas: HasMany<super::idea::Entity>,
     #[sea_orm(has_many, via = "favorite_idea")]
     pub idea_markets: HasMany<super::idea_market::Entity>,
+    #[sea_orm(has_many, via = "project_marks")]
+    pub projects: HasMany<super::project::Entity>,
     #[sea_orm(has_many, via = "user_skill")]
     pub skills: HasMany<super::skill::Entity>,
 }

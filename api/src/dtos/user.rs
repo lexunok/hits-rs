@@ -22,6 +22,29 @@ impl From<users::ModelEx> for UserDto {
     }
 }
 
+impl UserDto {
+    /// Создать минимальный UserDto из четырёх полей (используется в сервисах при JOIN-запросах).
+    pub fn from_parts(id: Uuid, email: String, first_name: String, last_name: String) -> Self {
+        Self {
+            id,
+            email,
+            first_name,
+            last_name,
+            ..Default::default()
+        }
+    }
+
+    /// Создать UserDto из Option-полей (для nullable JOIN-результатов).
+    pub fn from_parts_opt(
+        id: Option<Uuid>,
+        email: Option<String>,
+        first_name: Option<String>,
+        last_name: Option<String>,
+    ) -> Option<Self> {
+        id.map(|id| Self::from_parts(id, email.unwrap_or_default(), first_name.unwrap_or_default(), last_name.unwrap_or_default()))
+    }
+}
+
 #[derive(IntoDataResponse, Debug, Serialize, Deserialize, Default, Clone, DerivePartialModel)]
 #[sea_orm(entity = "entity::users::Entity")]
 pub struct UserDto {

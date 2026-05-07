@@ -38,12 +38,18 @@ pub struct Model {
     pub user_skills: HasMany<super::user_skill::Entity>,
     #[sea_orm(has_many)]
     pub team_members: HasMany<super::team_member::Entity>,
-    // #[sea_orm(has_many)]
-    // pub teams: HasMany<super::team::Entity>,
-    // #[sea_orm(has_many, relation_enum = "TeamLeader")]
-    // pub leader_teams: HasMany<super::team::Entity>,
-    // #[sea_orm(has_many, relation_enum = "TeamOwner")]
-    // pub owner_teams: HasMany<super::team::Entity>,
+    #[sea_orm(has_many)]
+    pub project_members: HasMany<super::project_member::Entity>,
+    #[sea_orm(has_many)]
+    pub sprint_marks: HasMany<super::sprint_mark::Entity>,
+    #[sea_orm(has_many)]
+    pub task_histories: HasMany<super::task_history::Entity>,
+    #[sea_orm(has_many)]
+    pub team_invitations: HasMany<super::team_invitation::Entity>,
+    #[sea_orm(has_many)]
+    pub team_refuseds: HasMany<super::team_refused::Entity>,
+    #[sea_orm(has_many, via = "project_marks")]
+    pub projects: HasMany<super::project::Entity>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}

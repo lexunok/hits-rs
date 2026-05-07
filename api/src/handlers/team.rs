@@ -151,10 +151,10 @@ async fn create_market_request(
     Ok(request)
 }
 
-// #[has_any_role(Admin, TeamOwner, TeamLeader)]  ?????
+#[has_any_role(Admin, TeamOwner, TeamLeader)]
 async fn add_team_member(
     State(state): State<AppState>,
-    _: Claims,
+    claims: Claims,
     Path((team_id, user_id)): Path<(Uuid, Uuid)>,
 ) -> Result<UserDto, AppError> {
     let member = TeamService::add_team_member(&state, team_id, user_id).await?;
@@ -171,16 +171,16 @@ async fn delete_team(
     TeamService::delete(&state, id, claims.sub, is_admin).await
 }
 
-// #[has_any_role(Admin, TeamOwner, TeamLeader)] ??????
+#[has_any_role(Admin, TeamOwner, TeamLeader)]
 async fn kick(
     State(state): State<AppState>,
-    _: Claims,
+    claims: Claims,
     Path((team_id, user_id)): Path<(Uuid, Uuid)>,
 ) -> Result<(), AppError> {
     TeamService::kick(&state, team_id, user_id).await
 }
 
-// #[has_any_role(Admin, Member)] ???
+#[has_any_role(Admin, Member, TeamOwner, TeamLeader)]
 async fn leave(
     State(state): State<AppState>,
     claims: Claims,
@@ -245,7 +245,7 @@ async fn update_team_leader(
     TeamService::update_team_leader(&state, team_id, user_id, is_admin).await
 }
 
-// #[has_any_role(Admin, TeamOwner, TeamLeader)] ???
+#[has_any_role(Admin, TeamOwner, TeamLeader, Member)]
 async fn update_team_invitation_status(
     State(state): State<AppState>,
     claims: Claims,
@@ -256,7 +256,7 @@ async fn update_team_invitation_status(
     Ok(invitation)
 }
 
-// #[has_any_role(Admin, TeamOwner, TeamLeader)] ???
+#[has_any_role(Admin, TeamOwner, TeamLeader, Member)]
 async fn update_team_request_status(
     State(state): State<AppState>,
     claims: Claims,
