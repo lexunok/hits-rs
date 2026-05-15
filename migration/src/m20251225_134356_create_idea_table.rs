@@ -1,5 +1,7 @@
 use sea_orm_migration::prelude::*;
 
+use crate::m20251218_060739_create_company_table::Company;
+
 use super::{
     m20251202_065032_create_user_table::Users, m20251221_103728_create_skill_table::Skill,
     m20251222_064711_create_groups_table::Group,
@@ -37,8 +39,7 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(Idea::Problem).string().not_null())
                     .col(ColumnDef::new(Idea::Solution).string().not_null())
                     .col(ColumnDef::new(Idea::Result).string().not_null())
-                    .col(ColumnDef::new(Idea::Customer).string().not_null())
-                    .col(ColumnDef::new(Idea::ContactPerson).string().not_null())
+                    .col(ColumnDef::new(Idea::CompanyId).uuid().not_null())
                     .col(ColumnDef::new(Idea::Description).string().not_null())
                     .col(ColumnDef::new(Idea::Suitability).big_unsigned().not_null())
                     .col(ColumnDef::new(Idea::Budget).big_unsigned().not_null())
@@ -75,6 +76,11 @@ impl MigrationTrait for Migration {
                         ForeignKey::create()
                             .from(Idea::Table, Idea::InitiatorId)
                             .to(Users::Table, Users::Id),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .from(Idea::Table, Idea::CompanyId)
+                            .to(Company::Table, Company::Id),
                     )
                     .foreign_key(
                         ForeignKey::create()
@@ -134,9 +140,8 @@ pub enum Idea {
     Problem,
     Solution,
     Result,
-    Customer,
+    CompanyId,
     Description,
-    ContactPerson,
     Suitability,
     Budget,
     MaxTeamSize,

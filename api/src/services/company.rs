@@ -12,8 +12,8 @@ use entity::{
     users,
 };
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, ExprTrait, IntoActiveModel,
-    JoinType, QueryFilter, QuerySelect, RelationTrait, TransactionTrait, prelude::Uuid, sea_query,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, IntoActiveModel,
+    JoinType, QueryFilter, QuerySelect, RelationTrait, TransactionTrait, prelude::Uuid,
 };
 
 pub struct CompanyService;
@@ -29,40 +29,33 @@ impl CompanyService {
     }
     pub async fn get_members(state: &AppState, id: Uuid) -> Vec<UserDto> {
         Users::find()
-            .filter(
-                users::Column::Id.in_subquery(
-                    sea_query::Query::select()
-                        .column(company_member::Column::UserId)
-                        .from(company_member::Entity)
-                        .and_where(company_member::Column::CompanyId.eq(id))
-                        .to_owned(),
-                ),
-            )
-            .into_partial_model::<UserDto>()
+            .inner_join(CompanyMember)
+            .filter(company_member::Column::CompanyId.eq(id))
+            .into_partial_model()
             .all(&state.conn)
             .await
             .unwrap_or_default()
     }
 
-    pub async fn get_my(state: &AppState, user_id: Uuid) -> Vec<CompanyResponse> {
-        Company::find()
-            .join(JoinType::InnerJoin, company::Relation::Owner.def())
-            .filter(
-                company::Column::Id
-                    .in_subquery(
-                        sea_query::Query::select()
-                            .column(company_member::Column::CompanyId)
-                            .from(company_member::Entity)
-                            .and_where(company_member::Column::UserId.eq(user_id))
-                            .to_owned(),
-                    )
-                    .or(company::Column::OwnerId.eq(user_id)),
-            )
-            .into_partial_model::<CompanyResponse>()
-            .all(&state.conn)
-            .await
-            .unwrap_or_default()
-    }
+    // pub async fn get_my(state: &AppState, user_id: Uuid) -> Vec<CompanyResponse> {
+    //     Company::find()
+    //         .join(JoinType::InnerJoin, company::Relation::Owner.def())
+    //         .filter(
+    //             company::Column::Id
+    //                 .in_subquery(
+    //                     sea_query::Query::select()
+    //                         .column(company_member::Column::CompanyId)
+    //                         .from(company_member::Entity)
+    //                         .and_where(company_member::Column::UserId.eq(user_id))
+    //                         .to_owned(),
+    //                 )
+    //                 .or(company::Column::OwnerId.eq(user_id)),
+    //         )
+    //         .into_partial_model::<CompanyResponse>()
+    //         .all(&state.conn)
+    //         .await
+    //         .unwrap_or_default()
+    // }
     pub async fn get_one(state: &AppState, id: Uuid) -> Result<CompanyResponse, AppError> {
         let mut company: CompanyResponse = Company::find_by_id(id)
             .join(JoinType::InnerJoin, company::Relation::Owner.def())
@@ -72,15 +65,8 @@ impl CompanyService {
             .ok_or(AppError::NotFound)?;
 
         let members: Vec<UserDto> = Users::find()
-            .filter(
-                users::Column::Id.in_subquery(
-                    sea_query::Query::select()
-                        .column(company_member::Column::UserId)
-                        .from(company_member::Entity)
-                        .and_where(company_member::Column::CompanyId.eq(id))
-                        .to_owned(),
-                ),
-            )
+            .inner_join(CompanyMember)
+            .filter(company_member::Column::CompanyId.eq(id))
             .into_partial_model()
             .all(&state.conn)
             .await?;
@@ -169,12 +155,15 @@ impl CompanyService {
             .await?
             .ok_or(AppError::NotFound)?;
 
-        if let Some(members) = payload.members {
+        if let Some(members) = payload.remove_members {
             CompanyMember::delete_many()
                 .filter(company_member::Column::CompanyId.eq(payload.id))
+                .filter(company_member::Column::UserId.is_in(members))
                 .exec(&txn)
                 .await?;
+        }
 
+        if let Some(members) = payload.new_members {
             let members: Vec<company_member::ActiveModel> = members
                 .iter()
                 .map(|member| company_member::ActiveModel {
@@ -183,21 +172,19 @@ impl CompanyService {
                 })
                 .collect();
 
-            let members_keys: Vec<Uuid> = CompanyMember::insert_many(members)
-                .exec_with_returning(&txn)
-                .await?
-                .iter()
-                .map(|m| m.user_id)
-                .collect();
-
-            let members: Vec<UserDto> = Users::find()
-                .filter(users::Column::Id.is_in(members_keys))
-                .into_partial_model()
-                .all(&txn)
+            CompanyMember::insert_many(members)
+                .exec(&txn)
                 .await?;
-
-            company.members = members;
         }
+
+        let members: Vec<UserDto> = Users::find()
+            .inner_join(CompanyMember)
+            .filter(company_member::Column::CompanyId.eq(payload.id))
+            .into_partial_model()
+            .all(&txn)
+            .await?;
+
+        company.members = members;
 
         txn.commit().await?;
 

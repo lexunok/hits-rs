@@ -13,10 +13,7 @@ use crate::{
 };
 use chrono::Local;
 use entity::{
-    group, group_member, idea, idea_checked, idea_skill,
-    idea_status::IdeaStatus,
-    prelude::{Group, GroupMember, Idea, IdeaSkill, Rating},
-    rating, skill, users,
+    company, group, group_member, idea, idea_checked, idea_skill, idea_status::IdeaStatus, prelude::{Group, GroupMember, Idea, IdeaSkill, Rating}, rating, skill, users
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, EntityTrait, ExprTrait, IntoActiveModel, Iterable,
@@ -43,6 +40,9 @@ impl IdeaService {
                 "project_office",
             )
             .left_join(users::Entity)
+            .left_join(company::Entity)
+            .column_as(company::Column::ContactPerson, "company_contact_person")
+            .column_as(company::Column::Name, "company_name")
             .column_as(users::Column::Email, "initiator_email")
             .column_as(users::Column::FirstName, "initiator_first_name")
             .column_as(users::Column::LastName, "initiator_last_name")
@@ -95,6 +95,9 @@ impl IdeaService {
     ) -> Vec<IdeaWithChecked> {
         Idea::find()
             .left_join(users::Entity)
+            .left_join(company::Entity)
+            .column_as(company::Column::ContactPerson, "company_contact_person")
+            .column_as(company::Column::Name, "company_name")
             .column_as(users::Column::Email, "initiator_email")
             .column_as(users::Column::FirstName, "initiator_first_name")
             .column_as(users::Column::LastName, "initiator_last_name")
@@ -147,7 +150,10 @@ impl IdeaService {
             .filter(rating::Column::IsConfirmed.eq(false))
             .left_join(idea::Entity)
             .join(JoinType::LeftJoin, idea::Relation::Users.def())
+            .join(JoinType::LeftJoin, idea::Relation::Company.def())
             .columns(idea::Column::iter())
+            .column_as(company::Column::ContactPerson, "company_contact_person")
+            .column_as(company::Column::Name, "company_name")
             .column_as(users::Column::Email, "initiator_email")
             .column_as(users::Column::FirstName, "initiator_first_name")
             .column_as(users::Column::LastName, "initiator_last_name")
@@ -219,8 +225,7 @@ impl IdeaService {
             problem: Set(payload.problem),
             solution: Set(payload.solution),
             result: Set(payload.result),
-            customer: Set(payload.customer),
-            contact_person: Set(payload.contact_person),
+            company_id: Set(payload.company_id),
             description: Set(payload.description),
             suitability: Set(payload.suitability),
             budget: Set(payload.budget),

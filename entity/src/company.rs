@@ -11,6 +11,7 @@ pub struct Model {
     pub id: Uuid,
     pub name: String,
     pub owner_id: Uuid,
+    pub contact_person: Option<String>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
     #[sea_orm(belongs_to, from = "owner_id", to = "id", relation_enum = "Owner")]

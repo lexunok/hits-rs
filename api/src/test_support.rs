@@ -9,7 +9,7 @@ use entity::{
     verification_code,
 };
 use migration::{Migrator, MigratorTrait};
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, Database, DatabaseConnection};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, ConnectionTrait, Database, DatabaseConnection, prelude::Uuid};
 use tokio::sync::OnceCell;
 
 static DB_RESET: OnceCell<()> = OnceCell::const_new();
@@ -287,6 +287,7 @@ pub async fn seed_idea(
     initiator_id: sea_orm::prelude::Uuid,
     group_expert_id: sea_orm::prelude::Uuid,
     group_project_office_id: sea_orm::prelude::Uuid,
+    company_id: Uuid,
     name: &str,
 ) -> anyhow::Result<idea::Model> {
     let idea = idea::ActiveModel {
@@ -298,8 +299,7 @@ pub async fn seed_idea(
         problem: Set("Problem".to_owned()),
         solution: Set("Solution".to_owned()),
         result: Set("Result".to_owned()),
-        customer: Set("Customer".to_owned()),
-        contact_person: Set("Contact".to_owned()),
+        company_id: Set(company_id),
         description: Set("Description".to_owned()),
         suitability: Set(1),
         budget: Set(1),

@@ -19,8 +19,7 @@ pub struct Model {
     pub problem: String,
     pub solution: String,
     pub result: String,
-    pub customer: String,
-    pub contact_person: String,
+    pub company_id: Uuid,
     pub description: String,
     pub suitability: i64,
     pub budget: i64,
@@ -52,6 +51,12 @@ pub struct Model {
     pub project: HasOne<super::project::Entity>,
     #[sea_orm(has_many)]
     pub ratings: HasMany<super::rating::Entity>,
+    #[sea_orm(
+        belongs_to,
+        from = "company_id",
+        to = "id"
+    )]    
+    pub company: HasOne<super::company::Entity>,
     #[sea_orm(has_many, via = "idea_skill")]
     pub skills: HasMany<super::skill::Entity>,
     #[sea_orm(belongs_to, from = "initiator_id", to = "id")]

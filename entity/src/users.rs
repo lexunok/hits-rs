@@ -26,6 +26,8 @@ pub struct Model {
     pub ratings: HasMany<super::rating::Entity>,
     #[sea_orm(has_many, via = "company_member")]
     pub companies: HasMany<super::company::Entity>,
+    #[sea_orm(has_many)]
+    pub company_members: HasMany<super::company_member::Entity>,
     #[sea_orm(has_many, via = "group_member")]
     pub groups: HasMany<super::group::Entity>,
     #[sea_orm(has_many, via = "idea_checked")]

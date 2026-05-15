@@ -1,4 +1,4 @@
-use crate::dtos::{group::GroupDto, skill::SkillDto, user::UserDto};
+use crate::dtos::{company::CompanyDto, group::GroupDto, skill::SkillDto, user::UserDto};
 use entity::idea_status::IdeaStatus;
 use macros::IntoDataResponse;
 use sea_orm::{
@@ -33,8 +33,7 @@ pub struct IdeaDto {
     pub problem: String,
     pub solution: String,
     pub result: String,
-    pub customer: String,
-    pub contact_person: String,
+    pub company_id: Uuid,
     pub description: String,
     pub suitability: i64,
     pub budget: i64,
@@ -51,6 +50,7 @@ pub struct IdeaWithChecked {
     pub name: String,
     pub experts: Option<GroupDto>,
     pub project_office: Option<GroupDto>,
+    pub company: CompanyDto,
     pub is_checked: bool,
     pub status: IdeaStatus,
     pub created_at: DateTimeLocal,
@@ -59,8 +59,6 @@ pub struct IdeaWithChecked {
     pub problem: String,
     pub solution: String,
     pub result: String,
-    pub customer: String,
-    pub contact_person: String,
     pub description: String,
     pub suitability: i64,
     pub budget: i64,
@@ -94,8 +92,11 @@ pub struct IdeaQueryResult {
     pub problem: String,
     pub solution: String,
     pub result: String,
-    pub customer: String,
-    pub contact_person: String,
+
+    pub company_id: Uuid,
+    pub company_contact_person: String,
+    pub company_name: String,
+
     pub description: String,
     pub suitability: i64,
     pub budget: i64,
@@ -137,8 +138,11 @@ impl From<IdeaQueryResult> for IdeaWithChecked {
             problem: value.problem,
             solution: value.solution,
             result: value.result,
-            customer: value.customer,
-            contact_person: value.contact_person,
+            company: CompanyDto {
+                id: value.company_id,
+                name: value.company_name,
+                contact_person: value.company_contact_person
+            },
             description: value.description,
             suitability: value.suitability,
             budget: value.budget,
@@ -159,8 +163,7 @@ pub struct SaveIdeaRequest {
     pub problem: String,
     pub solution: String,
     pub result: String,
-    pub customer: String,
-    pub contact_person: String,
+    pub company_id: Uuid,
     pub description: String,
     pub suitability: i64,
     pub budget: i64,

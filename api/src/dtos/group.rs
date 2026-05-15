@@ -25,7 +25,8 @@ pub struct UpdateGroupRequest {
     pub id: Uuid,
     pub name: Option<String>,
     pub roles: Option<Vec<Role>>,
-    pub members: Option<Vec<Uuid>>,
+    pub new_members: Option<Vec<Uuid>>,
+    pub remove_members: Option<Vec<Uuid>>,
 }
 
 impl Default for GroupDto {

@@ -43,7 +43,7 @@ impl ProjectService {
             .join(JoinType::InnerJoin, project::Relation::Team.def())
             .column_as(idea::Column::Name, "name")
             .column_as(idea::Column::Description, "description")
-            .column_as(idea::Column::Customer, "customer")
+            .column_as(idea::Column::CompanyId, "company_id")
             .column_as(users::Column::Id, "initiator_id")
             .column_as(users::Column::Email, "initiator_email")
             .column_as(users::Column::FirstName, "initiator_first_name")

@@ -122,12 +122,14 @@ impl GroupService {
 
         let group = group.update(&txn).await?;
 
-        if let Some(members) = payload.members {
+        if let Some(members) = payload.remove_members {
             GroupMember::delete_many()
-                .filter(group_member::Column::GroupId.eq(payload.id))
+                .filter(group_member::Column::UserId.is_in(members))
                 .exec(&txn)
                 .await?;
+        }
 
+        if let Some(members) = payload.new_members {
             let members: Vec<group_member::ActiveModel> = members
                 .iter()
                 .map(|member| group_member::ActiveModel {

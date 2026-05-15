@@ -16,7 +16,8 @@ pub struct UpdateCompanyRequest {
     pub id: Uuid,
     pub name: Option<String>,
     pub owner_id: Option<Uuid>,
-    pub members: Option<Vec<Uuid>>,
+    pub new_members: Option<Vec<Uuid>>,
+    pub remove_members: Option<Vec<Uuid>>,
 }
 
 #[derive(IntoDataResponse, Debug, Serialize, Deserialize, DerivePartialModel)]
@@ -24,8 +25,16 @@ pub struct UpdateCompanyRequest {
 pub struct CompanyResponse {
     pub id: Uuid,
     pub name: String,
+    pub contact_person: String,
     #[sea_orm(nested)]
     pub owner: UserDto,
     #[sea_orm(skip)]
     pub members: Vec<UserDto>,
+}
+
+#[derive(IntoDataResponse, Debug, Serialize, Deserialize)]
+pub struct CompanyDto {
+    pub id: Uuid,
+    pub name: String,
+    pub contact_person: String
 }

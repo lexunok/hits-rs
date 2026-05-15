@@ -27,7 +27,7 @@ pub fn company_router() -> Router<AppState> {
         )
         .route("/{id}", get(get_company_by_id).delete(delete_company))
         .route("/{id}/members", get(get_company_members))
-        .route("/my", get(get_my_companies))
+        // .route("/my", get(get_my_companies))
 }
 async fn get_all_companies(State(state): State<AppState>, _: Claims) -> Json<Vec<CompanyResponse>> {
     let companies = CompanyService::get_all(&state).await;
@@ -41,13 +41,13 @@ async fn get_company_members(
     let members = CompanyService::get_members(&state, id).await;
     Json(members)
 }
-async fn get_my_companies(
-    State(state): State<AppState>,
-    claims: Claims,
-) -> Json<Vec<CompanyResponse>> {
-    let companies = CompanyService::get_my(&state, claims.sub).await;
-    Json(companies)
-}
+// async fn get_my_companies(
+//     State(state): State<AppState>,
+//     claims: Claims,
+// ) -> Json<Vec<CompanyResponse>> {
+//     let companies = CompanyService::get_my(&state, claims.sub).await;
+//     Json(companies)
+// }
 async fn get_company_by_id(
     State(state): State<AppState>,
     _: Claims,

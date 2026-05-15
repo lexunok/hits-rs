@@ -21,6 +21,7 @@ impl MigrationTrait for Migration {
                             .default(Expr::cust("gen_random_uuid()")),
                     )
                     .col(ColumnDef::new(Company::Name).string().not_null())
+                    .col(ColumnDef::new(Company::ContactPerson).string())
                     .col(ColumnDef::new(Company::OwnerId).uuid().not_null())
                     .col(
                         ColumnDef::new(Company::CreatedAt)
@@ -78,10 +79,11 @@ impl MigrationTrait for Migration {
 }
 
 #[derive(Iden)]
-enum Company {
+pub enum Company {
     Table,
     Id,
     Name,
+    ContactPerson,
     OwnerId,
     CreatedAt,
     UpdatedAt,
