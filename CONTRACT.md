@@ -124,7 +124,7 @@ This document outlines the inconsistencies found between the Rust backend API (`
 | `PUT`    | `/`              | `update_company`        | `UpdateCompanyAsync` | Match            |                                                                    |
 | `GET`    | `/{id}`          | `get_company_by_id`     | `GetCompanyByIdAsync`| Match            |                                                                    |
 | `DELETE` | `/{id}`          | `delete_company`        | `DeleteCompanyAsync` | Match            |                                                                    |
-| `GET`    | `/{id}/members`  | `get_company_members`   | **Missing on FE**    | Missing on FE    |                                                                    |
+| `GET`    | `/{id}/members`  | `get_company_members`   | `GetCompanyMembersAsync` | Match            | Frontend implements pagination and search which backend may not. |
 | `GET`    | `/my`            | `get_my_companies`      | **Missing on FE**    | Missing on FE    |                                                                    |
 
 ### Models/DTOs
@@ -189,14 +189,14 @@ This document outlines the inconsistencies found between the Rust backend API (`
     // Inferred
     public class UpdateCompanyRequest {
         public Guid Id { get; set; }
-        public string Name { get; set; }
-        public Guid OwnerId { get; set; }
-        public List<Guid> Members { get; set; }
+        public string? Name { get; set; }
+        public Guid? OwnerId { get; set; }
+        public IEnumerable<Guid>? NewMembersIds { get; set; }
+        public IEnumerable<Guid>? RemoveMembersIds { get; set; }
     }
     ```
--   **Status**: Mismatch
--   **Notes**: The backend model uses `Option<T>` for updatable fields, allowing partial updates. The frontend model sends all fields as non-nullable, which might not be the intended behavior.
-
+-   **Status**: Match
+-   **Notes**: The frontend `UpdateCompanyAsync` method uses nullable parameters, allowing for partial updates, which aligns with the backend's `Option<T>` fields.
 ---
 
 ## Group Contract Analysis (`/api/group`)
@@ -273,13 +273,14 @@ This document outlines the inconsistencies found between the Rust backend API (`
     // Inferred
     public class UpdateGroupRequest {
         public Guid Id { get; set; }
-        public string Name { get; set; }
-        public List<RoleType> Roles { get; set; }
-        public List<Guid> Members { get; set; }
+        public string? Name { get; set; }
+        public IEnumerable<Guid>? NewMembersIds { get; set; }
+        public IEnumerable<Guid>? RemoveMembersIds { get; set; }
+        public IEnumerable<RoleType>? Roles { get; set; }
     }
     ```
--   **Status**: Mismatch
--   **Notes**: Similar to company update, the backend expects optional fields for partial updates, while the frontend sends a complete object.
+-   **Status**: Match
+-   **Notes**: The frontend `UpdateUsersGroup` method uses nullable parameters, allowing for partial updates, which aligns with the backend's `Option<T>` fields.
 
 ---
 ## Idea Contract Analysis (`/api/idea`)
@@ -298,15 +299,13 @@ This document outlines the inconsistencies found between the Rust backend API (`
 | `PUT` | `/send/{id}` | `send_idea_to_approval` | **Missing on FE** | Missing on FE | FE `CreateNewIdeaAsync` handles this via status. |
 | `GET` | `/skills/{id}` | `get_idea_skills` | `GetAllIdeaSkillsAsync` | Match | |
 | `POST` | `/skills` | `save_idea_skills` | `CreateOrUpdateIdeasSkills` | Match | |
-| | | | `GetIdeaRatingsAsync` | **Missing on BE** | Missing on BE |
-| | | | `SendRatingAsync` | Mismatch | `rating` endpoint handles this on BE |
-| | | | `GetIdeasCommentsAsync` | **Missing on BE** | Missing on BE |
-| | | | `DeleteCommentInIdeaAsync` | **Missing on BE** | Missing on BE |
+| `GET` | `/comments/{id}` | **Missing on BE** | `GetIdeasCommentsAsync` | Missing on BE | FE uses mock for comments. |
+| `DELETE` | `/comments/{id}` | **Missing on BE** | `DeleteCommentInIdeaAsync` | Missing on BE | FE uses mock for comments. |
 
 ### Models/DTOs
 
 #### 1. Save Idea Request
-- **Backend (`SaveIdeaRequest`)**:
+-   **Backend (`SaveIdeaRequest`)**:
     ```rust
     pub struct SaveIdeaRequest {
         pub id: Option<Uuid>,
@@ -324,7 +323,7 @@ This document outlines the inconsistencies found between the Rust backend API (`
         pub min_team_size: i16,
     }
     ```
-- **Frontend (`IdeasCreateModel`)**:
+-   **Frontend (`IdeasCreateModel`)**:
     ```csharp
     // Inferred from HITSBlazor.Pages.Ideas.IdeasCreate.IdeasCreateModel
     public class IdeasCreateModel {
@@ -336,8 +335,8 @@ This document outlines the inconsistencies found between the Rust backend API (`
         public string Customer { get; set; }
         public string ContactPerson { get; set; }
         public string Description { get; set; }
-        public long Suitability { get; set; } // Mismatch: No field on FE model. Inferred from BE.
-        public long Budget { get; set; }
+        // public long Suitability { get; set; } // Mismatch: Missing on FE model
+        // public long Budget { get; set; }      // Mismatch: Missing on FE model
         public short MaxTeamSize { get; set; }
         public short MinTeamSize { get; set; }
     }
@@ -441,7 +440,7 @@ This document outlines the inconsistencies found between the Rust backend API (`
     ```
 - **Frontend**: The frontend `GetEmailById` method directly returns a `string` (the email), losing the `code`. The `InvitationApi` correctly expects an object with an `email` field.
 - **Status**: Mismatch
-- **Notes**: `IInvitationService` defines `GetEmailById` as returning `Task<string?>`, but the API response is an object. `InvitationApi` correctly handles the object but only extracts the email. This is an inconsistency between the FE service interface and the actual API client implementation.
+-   **Notes**: `IInvitationService` defines `GetEmailById` as returning `Task<string?>`, but the API response is an object. `InvitationApi` correctly handles the object but only extracts the email. This is an inconsistency between the FE service interface and the actual API client implementation.
 
 ---
 ## Market Contract Analysis (`/api/market`)
@@ -453,7 +452,7 @@ This document outlines the inconsistencies found between the Rust backend API (`
 | `GET` | `/` | `get_all_markets` | `GetMarketsAsync` | Match | FE has more features (sorting). |
 | `POST` | `/` | `create_market` | `CreateNewMarketAsync` | Match | |
 | `PUT` | `/` | `update_market` | `UpdateMarketAsync` | Match | |
-| `GET` | `/active` | `get_active_markets` | **Missing on FE** | Missing on FE | FE can filter by status. |
+| `GET` | `/active` | `get_active_markets` | `GetAllActiveMarketsAsync` | Match | Frontend uses a specific method for active markets. |
 | `PUT` | `/status` | `update_market_status` | `UpdateMarketStatusAsync` | Match | |
 | `GET` | `/{id}` | `get_market_by_id` | `GetMarketByIdAsync` | Match | |
 | `DELETE` | `/{id}` | `delete_market` | `DeleteMarketAsync` | Match | |
@@ -548,14 +547,14 @@ This document outlines the inconsistencies found between the Rust backend API (`
 | `GET` | `/` | `get_all_projects` | `GetProjectsByQueryAsync` | Match | |
 | `GET` | `/my` | `get_my_projects` | **Missing on FE** | Missing on FE | |
 | `GET` | `/my/active` | `get_my_active_projects` | `GetAllActiveProjectsAsync` | Match | |
-| `POST` | `/create/{idea_market_id}` | `create_project` | **Missing on FE** | Missing on FE | |
+| `POST` | `/create/{idea_market_id}` | `create_project` | `CreateNewProjectAsync` | Match | |
 | `GET` | `/{project_id}` | `get_project_by_id` | `GetProjectByIdAsync` | Match | |
-| `DELETE` | `/{project_id}` | `delete_project` | **Missing on FE** | Missing on FE | |
-| `GET` | `/members/{project_id}` | `get_project_members` | **Missing on FE** | Missing on FE | |
-| `POST` | `/members/{project_id}` | `add_member` | **Missing on FE** | Missing on FE | |
-| `DELETE` | `/members/{project_id}/{user_id}` | `kick_member_from_project_and_team` | **Missing on FE** | Missing on FE | |
+| `DELETE` | `/{project_id}` | `delete_project` | `DeleteProjectAsync` | Match | |
+| `GET` | `/members/{project_id}` | `get_project_members` | `GetProjectMembersAsync` | Match | |
+| `POST` | `/members/{project_id}` | `add_member` | `AddMemberInProjectAsync` | Match | |
+| `DELETE` | `/members/{project_id}/{user_id}` | `kick_member_from_project_and_team` | `KickMemberFromProjectAsync` | Match | |
 | `GET` | `/marks/{project_id}` | `get_project_marks` | `GetProjectMarksAsync` | Match | |
-| `PUT` | `/pause/{project_id}` | `pause_project` | **Missing on FE** | Missing on FE | |
+| `PUT` | `/pause/{project_id}` | `pause_project` | `PauseProjectAsync` | Match | |
 | `PUT` | `/finish/{project_id}` | `finish_project` | `FinishProjectAsync` | Match | |
 | `PUT` | `/team/{project_id}/{team_id}` | `change_team_in_project` | **Missing on FE** | Missing on FE | |
 
@@ -740,7 +739,7 @@ This domain has a large number of endpoints. A high-level summary:
         public string Email { get; set; }
         public string LastName { get; set; }
         public string FirstName { get; set; }
-        public DateTime CreatedAt { get; set; } // Mismatch: not present on all FE user models
+        public DateTime CreatedAt { get; set; }
         public List<Skill> Skills { get; set; }
     }
     ```

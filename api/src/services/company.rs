@@ -1,6 +1,7 @@
 use crate::{
     AppState,
     dtos::{
+        common::{PaginatedResponse, PaginationParams},
         company::{CompanyResponse, CreateCompanyRequest, UpdateCompanyRequest},
         user::UserDto,
     },
@@ -12,29 +13,56 @@ use entity::{
     users,
 };
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, IntoActiveModel,
-    JoinType, QueryFilter, QuerySelect, RelationTrait, TransactionTrait, prelude::Uuid,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, EntityTrait, ExprTrait, IntoActiveModel, JoinType, PaginatorTrait, QueryFilter, QuerySelect, RelationTrait, TransactionTrait, prelude::Uuid
 };
 
 pub struct CompanyService;
 
 impl CompanyService {
-    pub async fn get_all(state: &AppState) -> Vec<CompanyResponse> {
-        Company::find()
+    pub async fn get_all(
+        state: &AppState,
+        pagination: PaginationParams,
+    ) -> Result<PaginatedResponse<CompanyResponse>, AppError> {
+
+        let mut condition = Condition::all();
+
+        if let Some(search_text) = pagination.search_text {
+            condition = condition.add(company::Column::Name.ilike(format!("%{}%", search_text)));
+        }
+
+        let query = Company::find()
             .join(JoinType::InnerJoin, company::Relation::Owner.def())
-            .into_partial_model::<CompanyResponse>()
-            .all(&state.conn)
-            .await
-            .unwrap_or_default()
+            .filter(condition)
+            .into_partial_model::<CompanyResponse>();
+
+        let paginator = query.paginate(&state.conn, pagination.page_size);
+        let count = paginator.num_items().await.unwrap_or(0);
+        let list = paginator.fetch_page(pagination.page).await.unwrap_or_default();
+
+        Ok(PaginatedResponse { count, list })
     }
-    pub async fn get_members(state: &AppState, id: Uuid) -> Vec<UserDto> {
-        Users::find()
+    pub async fn get_members(
+        state: &AppState,
+        id: Uuid,
+        pagination: PaginationParams,
+    ) -> Result<PaginatedResponse<UserDto>, AppError> {
+
+        let mut condition = Condition::all().add(company_member::Column::CompanyId.eq(id));
+
+        if let Some(search_text) = pagination.search_text {
+            condition = condition.add(users::Column::FirstName.ilike(format!("%{}%", search_text)).or(users::Column::LastName.ilike(format!("%{}%", search_text))));
+        }
+
+        let query = Users::find()
             .inner_join(CompanyMember)
-            .filter(company_member::Column::CompanyId.eq(id))
-            .into_partial_model()
-            .all(&state.conn)
-            .await
-            .unwrap_or_default()
+            .filter(condition)
+            .into_partial_model();
+
+        let paginator = query.paginate(&state.conn, pagination.page_size);
+        let count = paginator.num_items().await.unwrap_or(0);
+        let list = paginator.fetch_page(pagination.page).await.unwrap_or_default();
+
+        Ok(PaginatedResponse { count, list })
     }
 
     // pub async fn get_my(state: &AppState, user_id: Uuid) -> Vec<CompanyResponse> {

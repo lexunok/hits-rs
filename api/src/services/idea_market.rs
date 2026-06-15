@@ -3,14 +3,9 @@ use std::collections::HashMap;
 use crate::{
     AppState,
     dtos::{
-        idea_market::{
-            CreateIdeaMarketAdvertisementRequest, IdeaMarketAdvertisementDto,
-            IdeaMarketAdvertisementQueryResult, IdeaMarketDto, IdeaMarketQueryResult,
-            IdeaMarketTeamDto, IdeaMarketTeamQueryResult, IdeaSkillQueryResult,
-            TeamSkillQueryResult,
-        },
-        skill::SkillDto,
-        user::UserDto,
+        common::{PaginatedResponse, PaginationParams}, idea_market::{
+            CreateIdeaMarketAdvertisementRequest, IdeaMarketAdvertisementDto, IdeaMarketAdvertisementQueryResult, IdeaMarketDto, IdeaMarketPaginationParams, IdeaMarketQueryResult, IdeaMarketTeamDto, IdeaMarketTeamQueryResult, IdeaSkillQueryResult, TeamSkillQueryResult
+        }, skill::SkillDto, user::UserDto
     },
     error::AppError,
 };
@@ -25,7 +20,7 @@ use entity::{
     request_status::RequestStatus,
     skill, team, team_member, user_skill, users,
 };
-use sea_orm::{
+use sea_orm::{PaginatorTrait,
     ActiveModelTrait, ColumnTrait, Condition, EntityTrait, ExprTrait, IntoActiveModel, JoinType,
     QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
     prelude::Uuid,
@@ -209,12 +204,30 @@ impl IdeaMarketService {
     async fn get_all_by_filter(
         state: &AppState,
         user_id: Uuid,
-        filter: Option<Condition>,
-    ) -> Result<Vec<IdeaMarketDto>, AppError> {
-        let rows: Vec<IdeaMarketQueryResult> = IdeaMarket::find()
+        params: Option<PaginationParams>,
+        mut condition: Condition,
+    ) -> Result<PaginatedResponse<IdeaMarketDto>, AppError> {
+
+        condition = condition.add(market::Column::Status.eq(MarketStatus::Active));
+
+        let base_query = IdeaMarket::find()
             .join(JoinType::InnerJoin, idea_market::Relation::Idea.def())
             .join(JoinType::InnerJoin, idea::Relation::Users.def())
             .join(JoinType::InnerJoin, idea_market::Relation::Market.def())
+            .filter(condition.clone());
+
+        let count = base_query.clone()
+            .select_only()
+            .column(idea_market::Column::Id)
+            .distinct()
+            .count(&state.conn)
+            .await?;
+
+        let params = params.unwrap_or(PaginationParams {page: 1, page_size: 1, search_text: None});
+
+        let offset = params.page * params.page_size;
+
+        let rows: Vec<IdeaMarketQueryResult> = base_query
             .column_as(users::Column::Id, "initiator_id")
             .column_as(users::Column::Email, "initiator_email")
             .column_as(users::Column::FirstName, "initiator_first_name")
@@ -263,12 +276,9 @@ impl IdeaMarketService {
                 ),
                 "is_favorite",
             )
-            .filter(
-                Condition::all()
-                    .add(market::Column::Status.eq(MarketStatus::Active))
-                    .add_option(filter),
-            )
             .order_by_desc(idea_market::Column::CreatedAt)
+            .limit(params.page_size)
+            .offset(offset)
             .into_model()
             .all(&state.conn)
             .await?;
@@ -279,7 +289,7 @@ impl IdeaMarketService {
         let skills_by_idea = Self::get_idea_skills_map(state, &idea_ids).await?;
         let teams_by_id = Self::get_team_map(state, &team_ids).await?;
 
-        let mut items: Vec<IdeaMarketDto> = rows
+        let mut list: Vec<IdeaMarketDto> = rows
             .into_iter()
             .map(|row| IdeaMarketDto {
                 id: row.id,
@@ -308,83 +318,61 @@ impl IdeaMarketService {
             })
             .collect();
 
-        items.sort_by(|left, right| {
+        list.sort_by(|left, right| {
             right
                 .requests
                 .cmp(&left.requests)
                 .then_with(|| left.name.cmp(&right.name))
         });
 
-        for (index, item) in items.iter_mut().enumerate() {
+        for (index, item) in list.iter_mut().enumerate() {
             item.position = index + 1;
         }
 
-        Ok(items)
+        Ok(PaginatedResponse { count, list })
     }
 
-    pub async fn get_all(state: &AppState, user_id: Uuid) -> Result<Vec<IdeaMarketDto>, AppError> {
-        Self::get_all_by_filter(state, user_id, None).await
-    }
+    pub async fn get_all(state: &AppState, user_id: Uuid, params: IdeaMarketPaginationParams) -> Result<PaginatedResponse<IdeaMarketDto>, AppError>  {
+        let mut condition = Condition::all();
+        
+        if let Some(market_id) = params.market_id {
+            condition = condition.add(idea_market::Column::MarketId.eq(market_id));
+        }
+        
+        if let Some(is_favorite) = params.favorite {
+            if is_favorite {
+                condition = condition.add(Expr::exists(
+                                Query::select()
+                                    .expr(Expr::val(1))
+                                    .from(FavoriteIdea)
+                                    .and_where(
+                                        Expr::col(favorite_idea::Column::UserId).eq(user_id),
+                                    )
+                                    .and_where(
+                                        Expr::col(favorite_idea::Column::IdeaMarketId)
+                                            .equals((IdeaMarket, idea_market::Column::Id)),
+                                    )
+                                    .to_owned(),
+                            ));
+            }
+        }
 
-    pub async fn get_all_by_market(
-        state: &AppState,
-        user_id: Uuid,
-        market_id: Uuid,
-    ) -> Result<Vec<IdeaMarketDto>, AppError> {
-        Self::get_all_by_filter(state, user_id, Some(Condition::all().add(
-            idea_market::Column::MarketId.eq(market_id),
-        )))
-        .await
-    }
+        if let Some(is_initiator) = params.is_initiator {
+            if is_initiator {
+                condition = condition.add(idea::Column::InitiatorId.eq(user_id));
+            }
+        }
 
-    pub async fn get_all_by_initiator(
-        state: &AppState,
-        user_id: Uuid,
-        market_id: Uuid,
-    ) -> Result<Vec<IdeaMarketDto>, AppError> {
-        Self::get_all_by_filter(
-            state,
-            user_id,
-            Some(
-                Condition::all()
-                    .add(idea_market::Column::MarketId.eq(market_id))
-                    .add(idea::Column::InitiatorId.eq(user_id)),
-            ),
-        )
-        .await
-    }
+        if let Some(search_text) = params.search_text {
+            condition = condition.add(idea::Column::Name.ilike(format!("%{}%", search_text)));
+        }
 
-    pub async fn get_all_favorite(
-        state: &AppState,
-        user_id: Uuid,
-        market_id: Uuid,
-    ) -> Result<Vec<IdeaMarketDto>, AppError> {
-        Self::get_all_by_filter(
-            state,
-            user_id,
-            Some(
-                Condition::all()
-                    .add(idea_market::Column::MarketId.eq(market_id))
-                    .add(
-                        Expr::exists(
-                            Query::select()
-                                .expr(Expr::val(1))
-                                .from(FavoriteIdea)
-                                .and_where(
-                                    Expr::col(favorite_idea::Column::UserId).eq(user_id),
-                                )
-                                .and_where(
-                                    Expr::col(favorite_idea::Column::IdeaMarketId)
-                                        .equals((IdeaMarket, idea_market::Column::Id)),
-                                )
-                                .to_owned(),
-                        ),
-                    ),
-            ),
-        )
-        .await
+        if let Some(status) = params.selected_status {
+            condition = condition.add(idea_market::Column::Status.eq(status));
+        }
+    
+        Self::get_all_by_filter(state, user_id, Some(PaginationParams{page: params.page, page_size: params.page_size, search_text: None}), condition).await
     }
-
     pub async fn get_one(
         state: &AppState,
         idea_market_id: Uuid,
@@ -393,9 +381,11 @@ impl IdeaMarketService {
         Self::get_all_by_filter(
             state,
             user_id,
-            Some(Condition::all().add(idea_market::Column::Id.eq(idea_market_id))),
+            None,
+            Condition::all().add(idea_market::Column::Id.eq(idea_market_id)),
         )
         .await?
+        .list
         .into_iter()
         .next()
         .ok_or(AppError::NotFound)
@@ -585,7 +575,7 @@ impl IdeaMarketService {
         state: &AppState,
         market_id: Uuid,
         idea_ids: Vec<Uuid>,
-    ) -> Result<Vec<IdeaMarketDto>, AppError> {
+    ) -> Result<(), AppError> {
         let txn = state.conn.begin().await?;
 
         for idea_id in &idea_ids {
@@ -612,7 +602,7 @@ impl IdeaMarketService {
 
         txn.commit().await?;
 
-        Self::get_all_by_market(state, Uuid::default(), market_id).await
+        Ok(())
     }
 
     pub async fn delete_advertisement(

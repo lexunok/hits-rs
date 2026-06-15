@@ -1,10 +1,10 @@
 use crate::{
     AppState,
     dtos::{
-        common::MessageResponse,
+        common::{MessageResponse, PaginatedResponse},
         idea::IdeaDto,
         idea_market::{
-            CreateIdeaMarketAdvertisementRequest, IdeaMarketAdvertisementDto, IdeaMarketDto,
+            CreateIdeaMarketAdvertisementRequest, IdeaMarketAdvertisementDto, IdeaMarketDto, IdeaMarketPaginationParams,
         },
     },
     error::AppError,
@@ -13,7 +13,7 @@ use crate::{
 };
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     routing::{delete, get, post, put},
 };
 use entity::{idea_market_status::IdeaMarketStatus, role::Role};
@@ -24,9 +24,6 @@ use sea_orm::prelude::Uuid;
 pub fn idea_market_router() -> Router<AppState> {
     Router::new()
         .route("/", get(get_all_idea_markets))
-        .route("/market/{market_id}", get(get_all_idea_markets_by_market))
-        .route("/my/{market_id}", get(get_my_idea_markets))
-        .route("/favorite/{market_id}", get(get_favorite_idea_markets))
         .route("/send/{market_id}", put(send_ideas_to_market))
         .route("/favorite/{idea_market_id}", put(add_to_favorite).delete(delete_from_favorite))
         .route("/advertisement", post(add_advertisement))
@@ -49,36 +46,9 @@ pub fn idea_market_router() -> Router<AppState> {
 async fn get_all_idea_markets(
     State(state): State<AppState>,
     claims: Claims,
-) -> Result<Json<Vec<IdeaMarketDto>>, AppError> {
-    let items = IdeaMarketService::get_all(&state, claims.sub).await?;
-    Ok(Json(items))
-}
-
-async fn get_all_idea_markets_by_market(
-    State(state): State<AppState>,
-    claims: Claims,
-    Path(market_id): Path<Uuid>,
-) -> Result<Json<Vec<IdeaMarketDto>>, AppError> {
-    let items = IdeaMarketService::get_all_by_market(&state, claims.sub, market_id).await?;
-    Ok(Json(items))
-}
-
-async fn get_my_idea_markets(
-    State(state): State<AppState>,
-    claims: Claims,
-    Path(market_id): Path<Uuid>,
-) -> Result<Json<Vec<IdeaMarketDto>>, AppError> {
-    let items = IdeaMarketService::get_all_by_initiator(&state, claims.sub, market_id).await?;
-    Ok(Json(items))
-}
-
-async fn get_favorite_idea_markets(
-    State(state): State<AppState>,
-    claims: Claims,
-    Path(market_id): Path<Uuid>,
-) -> Result<Json<Vec<IdeaMarketDto>>, AppError> {
-    let items = IdeaMarketService::get_all_favorite(&state, claims.sub, market_id).await?;
-    Ok(Json(items))
+    Query(pagination): Query<IdeaMarketPaginationParams>,
+) -> Result<PaginatedResponse<IdeaMarketDto>, AppError> {
+    IdeaMarketService::get_all(&state, claims.sub, pagination).await
 }
 
 async fn get_idea_market_by_id(
@@ -105,14 +75,13 @@ async fn send_ideas_to_market(
     claims: Claims,
     Path(market_id): Path<Uuid>,
     Json(payload): Json<Vec<IdeaDto>>,
-) -> Result<Json<Vec<IdeaMarketDto>>, AppError> {
-    let items = IdeaMarketService::send_to_market(
+) -> Result<(), AppError> {
+    IdeaMarketService::send_to_market(
         &state,
         market_id,
         payload.into_iter().map(|idea| idea.id).collect(),
     )
-    .await?;
-    Ok(Json(items))
+    .await
 }
 
 #[has_any_role(Admin, Initiator)]

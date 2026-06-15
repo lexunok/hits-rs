@@ -7,6 +7,17 @@ use sea_orm::{
 };
 use serde::{Deserialize, Serialize};
 
+#[derive(Deserialize)]
+pub struct IdeaMarketPaginationParams {
+    pub page: u64,
+    pub page_size: u64,
+    pub market_id: Option<Uuid>,
+    pub favorite: Option<bool>,
+    pub is_initiator: Option<bool>,
+    pub search_text: Option<String>,
+    pub selected_status: Option<IdeaMarketStatus>
+}
+
 #[derive(IntoDataResponse, Serialize, Deserialize, Debug, Clone)]
 pub struct IdeaMarketTeamDto {
     pub id: Uuid,

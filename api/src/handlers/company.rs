@@ -1,7 +1,7 @@
 use crate::{
     AppState,
     dtos::{
-        common::MessageResponse,
+        common::{MessageResponse, PaginatedResponse, PaginationParams},
         company::{CompanyResponse, CreateCompanyRequest, UpdateCompanyRequest},
         user::UserDto,
     },
@@ -11,7 +11,7 @@ use crate::{
 };
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     routing::get,
 };
 use macros::has_role;
@@ -29,17 +29,20 @@ pub fn company_router() -> Router<AppState> {
         .route("/{id}/members", get(get_company_members))
         // .route("/my", get(get_my_companies))
 }
-async fn get_all_companies(State(state): State<AppState>, _: Claims) -> Json<Vec<CompanyResponse>> {
-    let companies = CompanyService::get_all(&state).await;
-    Json(companies)
+async fn get_all_companies(
+    State(state): State<AppState>,
+    _: Claims,
+    Query(pagination): Query<PaginationParams>,
+) -> Result<PaginatedResponse<CompanyResponse>, AppError> {
+    CompanyService::get_all(&state, pagination).await
 }
 async fn get_company_members(
     State(state): State<AppState>,
     _: Claims,
     Path(id): Path<Uuid>,
-) -> Json<Vec<UserDto>> {
-    let members = CompanyService::get_members(&state, id).await;
-    Json(members)
+    Query(pagination): Query<PaginationParams>,
+) -> Result<PaginatedResponse<UserDto>, AppError> {
+    CompanyService::get_members(&state, id, pagination).await
 }
 // async fn get_my_companies(
 //     State(state): State<AppState>,

@@ -12,8 +12,8 @@ pub async fn create_admin(db: DbConn) -> Result<(), AppError> {
 
     if let None = user {
         let user = users::ActiveModel {
-            first_name: Set("Живая".to_owned()),
-            last_name: Set("Легенда".to_owned()),
+            first_name: Set("Админ".to_owned()),
+            last_name: Set("-".to_owned()),
             roles: Set(vec![Role::Admin, Role::Initiator]),
             email: Set(GLOBAL_CONFIG.admin_username.clone()),
             password: Set(hash_password(&GLOBAL_CONFIG.admin_password)?),
