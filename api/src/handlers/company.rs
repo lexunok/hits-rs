@@ -27,6 +27,8 @@ pub fn company_router() -> Router<AppState> {
         )
         .route("/{id}", get(get_company_by_id).delete(delete_company))
         .route("/{id}/members", get(get_company_members))
+        .route("/by-name/{name}", get(get_company_by_name))
+
         // .route("/my", get(get_my_companies))
 }
 async fn get_all_companies(
@@ -59,7 +61,14 @@ async fn get_company_by_id(
     let company = CompanyService::get_one(&state, id).await?;
     Ok(company)
 }
-
+async fn get_company_by_name(
+    State(state): State<AppState>,
+    _: Claims,
+    Path(name): Path<String>,
+) -> Result<CompanyResponse, AppError> {
+    let company = CompanyService::get_one_by_name(&state, name).await?;
+    Ok(company)
+}
 #[has_role(Admin)]
 async fn create_company(
     State(state): State<AppState>,

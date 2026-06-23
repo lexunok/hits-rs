@@ -2,6 +2,14 @@ use macros::IntoDataResponse;
 use sea_orm::{DerivePartialModel, prelude::Uuid};
 use serde::{Deserialize, Serialize};
 
+#[derive(Deserialize)]
+pub struct TagPaginationParams {
+    pub page: u64,
+    pub page_size: u64,
+    pub search_text: Option<String>,
+    pub confirmed: Option<bool>
+}
+
 #[derive(IntoDataResponse, Serialize, Deserialize, Debug, Clone, DerivePartialModel)]
 #[sea_orm(entity = "entity::tag::Entity")]
 pub struct TagDto {

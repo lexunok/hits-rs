@@ -16,7 +16,7 @@ use crate::{
     error::AppError,
     utils::query::load_tags_for_tasks,
 };
-use entity::{task, task_movement_log, task_status::TaskStatus, users};
+use entity::{prelude::*, task, task_movement_log, task_status::TaskStatus, users};
 
 pub struct TaskMovementLogService;
 
@@ -137,16 +137,13 @@ impl TaskMovementLogService {
         Ok(result)
     }
 
-    /// Сменить статус задачи: закрыть текущий лог, создать новый, обновить task.status.
-    /// Если статус = NewTask — executor снимается.
     pub async fn move_task(
         state: &AppState,
         payload: MoveTaskRequest,
     ) -> Result<TaskMovementLogDto, AppError> {
         let now = Local::now().fixed_offset();
 
-        // Закрываем открытый лог
-        entity::prelude::TaskMovementLog::update_many()
+        TaskMovementLog::update_many()
             .col_expr(
                 task_movement_log::Column::EndDate,
                 sea_orm::sea_query::Expr::value(Some(now)),
@@ -156,20 +153,18 @@ impl TaskMovementLogService {
             .exec(&state.conn)
             .await?;
 
-        // Обновляем задачу
-        let mut t = entity::prelude::Task::find_by_id(payload.task_id)
+        let mut task = Task::find_by_id(payload.task_id)
             .one(&state.conn)
             .await?
             .ok_or(AppError::NotFound)?
             .into_active_model();
 
         if payload.status == TaskStatus::NewTask {
-            t.executor_id = Set(None);
+            task.executor_id = Set(None);
         }
-        t.status = Set(Some(payload.status.clone()));
-        t.update(&state.conn).await?;
+        task.status = Set(Some(payload.status.clone()));
+        task.update(&state.conn).await?;
 
-        // Создаём новый лог
         let executor_id = if payload.status == TaskStatus::NewTask {
             None
         } else {

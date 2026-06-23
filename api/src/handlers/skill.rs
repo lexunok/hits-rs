@@ -1,8 +1,8 @@
 use crate::{
     AppState,
     dtos::{
-        common::MessageResponse,
-        skill::{CreateSkillRequest, SkillDto, UpdateSkillRequest},
+        common::{MessageResponse, PaginatedResponse},
+        skill::{CreateSkillRequest, SkillDto, SkillPaginationParams, UpdateSkillRequest},
     },
     error::AppError,
     services::skill::SkillService,
@@ -10,7 +10,7 @@ use crate::{
 };
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     routing::{delete, get},
 };
 use entity::{role::Role, skill_type::SkillType};
@@ -29,11 +29,13 @@ pub fn skill_router() -> Router<AppState> {
         .route("/my", get(get_all_my_or_confirmed))
 }
 
-async fn get_all_skills(State(state): State<AppState>, _: Claims) -> Json<Vec<SkillDto>> {
-    let skills = SkillService::get_all(&state).await;
-    Json(skills)
+async fn get_all_skills(
+    State(state): State<AppState>,
+    _: Claims,
+    Query(pagination): Query<SkillPaginationParams>,
+) -> Result<PaginatedResponse<SkillDto>, AppError> {
+    SkillService::get_all(&state, pagination).await
 }
-
 async fn get_all_my_or_confirmed(
     State(state): State<AppState>,
     claims: Claims,

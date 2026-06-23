@@ -5,6 +5,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::dtos::user::UserDto;
 
+#[derive(Deserialize)]
+pub struct GroupPaginationParams {
+    pub page: u64,
+    pub page_size: u64,
+    pub search_text: Option<String>,
+    pub selected_roles: Option<Vec<Role>>
+}
+
 #[derive(Serialize, IntoDataResponse, Debug, Deserialize, DerivePartialModel)]
 #[sea_orm(entity = "entity::group::Entity")]
 pub struct GroupDto {

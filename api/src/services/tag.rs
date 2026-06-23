@@ -1,16 +1,27 @@
-use crate::{AppState, dtos::tag::{CreateTagRequest, TagDto, UpdateTagRequest}, error::AppError};
+use crate::{AppState, dtos::{common::PaginatedResponse, tag::{CreateTagRequest, TagDto, TagPaginationParams, UpdateTagRequest}}, error::AppError};
 use entity::{prelude::Tag, tag};
-use sea_orm::{ActiveModelTrait, ActiveValue::Set, EntityTrait, IntoActiveModel, prelude::Uuid};
+use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter, prelude::Uuid};
 
 pub struct TagService;
 
 impl TagService {
-    pub async fn get_all(state: &AppState) -> Vec<TagDto> {
-        Tag::find()
-            .into_partial_model()
-            .all(&state.conn)
-            .await
-            .unwrap_or_default()
+    pub async fn get_all(state: &AppState, pagination: TagPaginationParams) -> Result<PaginatedResponse<TagDto>, AppError> {
+        let mut condition = Condition::all();
+
+        if let Some(search_text) = pagination.search_text {
+            condition = condition.add(tag::Column::Name.ilike(format!("%{}%", search_text)));
+        }
+        if let Some(confirmed) = pagination.confirmed {
+            condition = condition.add(tag::Column::Confirmed.eq(confirmed));
+        }
+        
+        let query = Tag::find().filter(condition).into_partial_model();
+
+        let paginator = query.paginate(&state.conn, pagination.page_size);
+        let count = paginator.num_items().await.unwrap_or(0);
+        let list = paginator.fetch_page(pagination.page).await.unwrap_or_default();
+
+        Ok(PaginatedResponse { count, list })
     }
 
     pub async fn create_confirmed(

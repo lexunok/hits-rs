@@ -46,7 +46,6 @@ impl ProfileService {
             .await
             .unwrap_or_default();
 
-        // Идеи, где пользователь является инициатором
         let ideas: Vec<ProfileIdeaDto> = Idea::find()
             .filter(idea::Column::InitiatorId.eq(user_id))
             .all(&state.conn)
@@ -60,7 +59,6 @@ impl ProfileService {
             })
             .collect();
 
-        // История участия в командах (все TeamMember записи, включая завершённые)
         let team_members = TeamMember::find()
             .filter(team_member::Column::UserId.eq(user_id))
             .join(JoinType::InnerJoin, team_member::Relation::Team.def())

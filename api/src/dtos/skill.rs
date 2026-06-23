@@ -3,6 +3,16 @@ use macros::IntoDataResponse;
 use sea_orm::{DerivePartialModel, prelude::Uuid};
 use serde::{Deserialize, Serialize};
 
+
+#[derive(Deserialize)]
+pub struct SkillPaginationParams {
+    pub page: u64,
+    pub page_size: u64,
+    pub search_text: Option<String>,
+    pub confirmed: Option<bool>,
+    pub skill_types: Option<Vec<SkillType>>
+}
+
 impl From<skill::ModelEx> for SkillDto {
     fn from(s: skill::ModelEx) -> Self {
         Self {

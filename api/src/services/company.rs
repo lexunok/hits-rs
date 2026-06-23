@@ -103,7 +103,26 @@ impl CompanyService {
 
         Ok(company)
     }
+    pub async fn get_one_by_name(state: &AppState, name: String) -> Result<CompanyResponse, AppError> {
+        let mut company: CompanyResponse = Company::find()
+            .filter(company::Column::Name.eq(name))
+            .join(JoinType::InnerJoin, company::Relation::Owner.def())
+            .into_partial_model()
+            .one(&state.conn)
+            .await?
+            .ok_or(AppError::NotFound)?;
 
+        let members: Vec<UserDto> = Users::find()
+            .inner_join(CompanyMember)
+            .filter(company_member::Column::CompanyId.eq(company.id))
+            .into_partial_model()
+            .all(&state.conn)
+            .await?;
+
+        company.members = members;
+
+        Ok(company)
+    }
     pub async fn create(
         state: &AppState,
         payload: CreateCompanyRequest,

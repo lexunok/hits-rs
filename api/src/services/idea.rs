@@ -1,11 +1,10 @@
 use crate::{
     AppState,
     dtos::{
-        common::PaginationParams,
+        common::PaginatedResponse,
         group::GroupDto,
         idea::{
-            IdeaDto, IdeaQueryResult, IdeaSkillRequest, IdeaStatusRequest, IdeaWithChecked,
-            SaveIdeaRequest,
+            IdeaDto, IdeaPaginationParams, IdeaQueryResult, IdeaSkillRequest, IdeaStatusRequest, IdeaWithChecked, SaveIdeaRequest
         },
         skill::SkillDto,
     },
@@ -91,9 +90,21 @@ impl IdeaService {
         state: &AppState,
         user_id: Uuid,
         initiator_filter: Option<Expr>,
-        pagination: PaginationParams,
-    ) -> Vec<IdeaWithChecked> {
-        Idea::find()
+        pagination: IdeaPaginationParams,
+    ) -> Result<PaginatedResponse<IdeaWithChecked>, AppError> {
+        let mut condition = Condition::all();
+
+        if let Some(search_text) = pagination.search_text {
+            condition = condition
+                .add(idea::Column::Name.ilike(format!("%{}%", search_text)))
+                .or(idea::Column::Description.ilike(format!("%{}%", search_text))).into();
+        }
+
+        if let Some(status_types) = pagination.status_types {
+            condition = condition.add(idea::Column::Status.is_in(status_types));
+        }
+
+        let query = Idea::find()
             .left_join(users::Entity)
             .left_join(company::Entity)
             .column_as(company::Column::ContactPerson, "company_contact_person")
@@ -115,23 +126,28 @@ impl IdeaService {
                 ),
                 "is_checked",
             )
-            .filter(Condition::all().add_option(initiator_filter))
+            .filter(condition.add_option(initiator_filter))
             .order_by_desc(idea::Column::ModifiedAt)
-            .into_model::<IdeaQueryResult>()
-            .paginate(&state.conn, pagination.page_size)
+            .into_model::<IdeaQueryResult>();
+
+        let paginator = query.paginate(&state.conn, pagination.page_size);
+        let count = paginator.num_items().await.unwrap_or(0);
+        let list = paginator
             .fetch_page(pagination.page)
             .await
             .unwrap_or_default()
             .into_iter()
             .map(IdeaWithChecked::from)
-            .collect()
+            .collect();
+
+        Ok(PaginatedResponse { count, list })
     }
 
     pub async fn get_all_by_initiator(
         state: &AppState,
         user_id: Uuid,
-        pagination: PaginationParams,
-    ) -> Vec<IdeaWithChecked> {
+        pagination: IdeaPaginationParams,
+    ) -> Result<PaginatedResponse<IdeaWithChecked>, AppError> {
         Self::get_all(
             state,
             user_id,
@@ -143,9 +159,9 @@ impl IdeaService {
     pub async fn get_all_on_confirmation(
         state: &AppState,
         user_id: Uuid,
-        pagination: PaginationParams,
-    ) -> Vec<IdeaWithChecked> {
-        Rating::find()
+        pagination: IdeaPaginationParams,
+    ) -> Result<PaginatedResponse<IdeaWithChecked>, AppError> {
+        let query = Rating::find()
             .filter(rating::Column::ExpertId.eq(user_id))
             .filter(rating::Column::IsConfirmed.eq(false))
             .left_join(idea::Entity)
@@ -172,14 +188,19 @@ impl IdeaService {
                 "is_checked",
             )
             .order_by_desc(idea::Column::ModifiedAt)
-            .into_model::<IdeaQueryResult>()
-            .paginate(&state.conn, pagination.page_size)
+            .into_model::<IdeaQueryResult>();
+
+        let paginator = query.paginate(&state.conn, pagination.page_size);
+        let count = paginator.num_items().await.unwrap_or(0);
+        let list = paginator
             .fetch_page(pagination.page)
             .await
             .unwrap_or_default()
             .into_iter()
             .map(IdeaWithChecked::from)
-            .collect()
+            .collect();
+
+        Ok(PaginatedResponse { count, list })
     }
     pub async fn get_idea_skills(state: &AppState, id: Uuid) -> Vec<SkillDto> {
         IdeaSkill::find()

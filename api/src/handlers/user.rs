@@ -1,7 +1,7 @@
 use crate::{
     AppState,
     dtos::{
-        common::{MessageResponse, PaginationParams},
+        common::{MessageResponse, PaginatedResponse, PaginationParams},
         user::{UserCreatePayload, UserDto, UserUpdatePayload},
     },
     error::AppError,
@@ -31,8 +31,8 @@ async fn get_all_users(
     State(state): State<AppState>,
     _: Claims,
     Query(pagination): Query<PaginationParams>,
-) -> Json<Vec<UserDto>> {
-    Json(UserService::get_all(&state, pagination).await)
+) -> Result<PaginatedResponse<UserDto>, AppError> {
+    UserService::get_all(&state, pagination).await
 }
 async fn get_all_users_in_teams(State(state): State<AppState>, _: Claims) -> Json<Vec<UserDto>> {
     Json(UserService::get_all_in_teams(&state).await)

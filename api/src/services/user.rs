@@ -1,7 +1,7 @@
 use crate::{
     AppState,
     dtos::{
-        common::PaginationParams,
+        common::{PaginatedResponse, PaginationParams},
         user::{UserCreatePayload, UserDto, UserUpdatePayload},
     },
     error::AppError,
@@ -22,15 +22,20 @@ use serde_json::json;
 pub struct UserService;
 
 impl UserService {
-    pub async fn get_all(state: &AppState, pagination: PaginationParams) -> Vec<UserDto> {
-        Users::find()
+    pub async fn get_all(
+        state: &AppState,
+        pagination: PaginationParams,
+    ) -> Result<PaginatedResponse<UserDto>, AppError> {
+        let query = Users::find()
             .filter(users::Column::IsDeleted.eq(false))
             .order_by_desc(users::Column::CreatedAt)
-            .into_partial_model()
-            .paginate(&state.conn, pagination.page_size)
-            .fetch_page(pagination.page)
-            .await
-            .unwrap_or_default()
+            .into_partial_model();
+
+        let paginator = query.paginate(&state.conn, pagination.page_size);
+        let count = paginator.num_items().await.unwrap_or(0);
+        let list = paginator.fetch_page(pagination.page).await.unwrap_or_default();
+
+        Ok(PaginatedResponse { count, list })
     }
     pub async fn get_all_with_skills(state: &AppState) -> Vec<UserDto> {
         Users::load()

@@ -1,13 +1,13 @@
 use crate::{
     AppState,
-    dtos::{common::MessageResponse, tag::{CreateTagRequest, TagDto, UpdateTagRequest}},
+    dtos::{common::{MessageResponse, PaginatedResponse}, tag::{CreateTagRequest, TagDto, TagPaginationParams, UpdateTagRequest}},
     error::AppError,
     services::tag::TagService,
     utils::security::Claims,
 };
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     routing::{delete, get, post, put},
 };
 use macros::has_any_role;
@@ -26,8 +26,9 @@ pub fn tag_router() -> Router<AppState> {
 async fn get_all_tags(
     State(state): State<AppState>,
     _: Claims,
-) -> Json<Vec<TagDto>> {
-    Json(TagService::get_all(&state).await)
+    Query(pagination): Query<TagPaginationParams>,
+) -> Result<PaginatedResponse<TagDto>, AppError> {
+    TagService::get_all(&state, pagination).await
 }
 
 #[has_any_role(Admin)]

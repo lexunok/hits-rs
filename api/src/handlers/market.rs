@@ -1,8 +1,8 @@
 use crate::{
     AppState,
     dtos::{
-        common::MessageResponse,
-        market::{CreateMarketRequest, MarketDto, UpdateMarketRequest, UpdateMarketStatusRequest},
+        common::{MessageResponse, PaginatedResponse},
+        market::{CreateMarketRequest, MarketDto, MarketPaginationParams, UpdateMarketRequest, UpdateMarketStatusRequest},
     },
     error::AppError,
     services::market::MarketService,
@@ -10,7 +10,7 @@ use crate::{
 };
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     routing::{get, put},
 };
 use entity::role::Role;
@@ -28,9 +28,12 @@ pub fn market_router() -> Router<AppState> {
         .route("/{id}", get(get_market_by_id).delete(delete_market))
 }
 
-async fn get_all_markets(State(state): State<AppState>, _: Claims) -> Json<Vec<MarketDto>> {
-    let markets = MarketService::get_all(&state, None).await;
-    Json(markets)
+async fn get_all_markets(
+    State(state): State<AppState>,
+    _: Claims,
+    Query(pagination): Query<MarketPaginationParams>,
+) -> Result<PaginatedResponse<MarketDto>, AppError> {
+    MarketService::get_all(&state, pagination).await
 }
 
 async fn get_active_markets(State(state): State<AppState>, _: Claims) -> Json<Vec<MarketDto>> {

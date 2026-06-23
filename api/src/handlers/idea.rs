@@ -1,8 +1,8 @@
 use crate::{
     AppState,
     dtos::{
-        common::{MessageResponse, PaginationParams},
-        idea::{IdeaDto, IdeaSkillRequest, IdeaStatusRequest, IdeaWithChecked, SaveIdeaRequest},
+        common::{MessageResponse, PaginatedResponse},
+        idea::{IdeaDto, IdeaPaginationParams, IdeaSkillRequest, IdeaStatusRequest, IdeaWithChecked, SaveIdeaRequest},
         skill::SkillDto,
     },
     error::AppError,
@@ -41,26 +41,23 @@ async fn get_idea_by_id(
 async fn get_all_ideas(
     State(state): State<AppState>,
     claims: Claims,
-    Query(pagination): Query<PaginationParams>,
-) -> Json<Vec<IdeaWithChecked>> {
-    let ideas = IdeaService::get_all(&state, claims.sub, None, pagination).await;
-    Json(ideas)
+    Query(pagination): Query<IdeaPaginationParams>,
+) -> Result<PaginatedResponse<IdeaWithChecked>, AppError> {
+    IdeaService::get_all(&state, claims.sub, None, pagination).await
 }
 async fn get_all_initiator_ideas(
     State(state): State<AppState>,
     claims: Claims,
-    Query(pagination): Query<PaginationParams>,
-) -> Json<Vec<IdeaWithChecked>> {
-    let ideas = IdeaService::get_all_by_initiator(&state, claims.sub, pagination).await;
-    Json(ideas)
+    Query(pagination): Query<IdeaPaginationParams>,
+) -> Result<PaginatedResponse<IdeaWithChecked>, AppError> {
+    IdeaService::get_all_by_initiator(&state, claims.sub, pagination).await
 }
 async fn get_all_on_confirmation_ideas(
     State(state): State<AppState>,
     claims: Claims,
-    Query(pagination): Query<PaginationParams>,
-) -> Json<Vec<IdeaWithChecked>> {
-    let ideas = IdeaService::get_all_on_confirmation(&state, claims.sub, pagination).await;
-    Json(ideas)
+    Query(pagination): Query<IdeaPaginationParams>,
+) -> Result<PaginatedResponse<IdeaWithChecked>, AppError> {
+    IdeaService::get_all_on_confirmation(&state, claims.sub, pagination).await
 }
 async fn get_idea_skills(
     State(state): State<AppState>,

@@ -1,8 +1,8 @@
 use crate::{
     AppState,
     dtos::{
-        common::MessageResponse,
-        group::{CreateGroupRequest, GroupDto, UpdateGroupRequest},
+        common::{MessageResponse, PaginatedResponse, PaginationParams},
+        group::{CreateGroupRequest, GroupDto, GroupPaginationParams, UpdateGroupRequest},
     },
     error::AppError,
     services::group::GroupService,
@@ -10,7 +10,7 @@ use crate::{
 };
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     routing::get,
 };
 use macros::has_role;
@@ -25,9 +25,12 @@ pub fn group_router() -> Router<AppState> {
         .route("/{id}", get(get_group_by_id).delete(delete_group))
 }
 
-async fn get_all_groups(State(state): State<AppState>, _: Claims) -> Json<Vec<GroupDto>> {
-    let groups = GroupService::get_all(&state).await;
-    Json(groups)
+async fn get_all_groups(
+    State(state): State<AppState>,
+    _: Claims,
+    Query(pagination): Query<GroupPaginationParams>,
+) -> Result<PaginatedResponse<GroupDto>, AppError> {
+    GroupService::get_all(&state, pagination).await
 }
 
 async fn get_group_by_id(

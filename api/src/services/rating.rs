@@ -5,8 +5,8 @@ use crate::{
 };
 use entity::{idea, idea_status::IdeaStatus, prelude::Rating, rating, users};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel, QueryFilter, Set,
-    TransactionTrait, prelude::Uuid, sea_query::Expr,
+    ActiveModelTrait, ColumnTrait,  EntityTrait, IntoActiveModel, QueryFilter, Set,
+    TransactionTrait, prelude::Uuid, 
 };
 use validator::Validate;
 
@@ -16,24 +16,14 @@ impl RatingService {
     pub async fn get_all(
         state: &AppState,
         idea_id: Uuid,
-        expert_filter: Option<Expr>,
     ) -> Vec<RatingDto> {
         Rating::find()
             .left_join(users::Entity)
             .filter(rating::Column::IdeaId.eq(idea_id))
-            .filter(Condition::all().add_option(expert_filter))
             .into_partial_model()
             .all(&state.conn)
             .await
             .unwrap_or_default()
-    }
-
-    pub async fn get_all_by_expert(
-        state: &AppState,
-        user_id: Uuid,
-        idea_id: Uuid,
-    ) -> Vec<RatingDto> {
-        Self::get_all(state, idea_id, Some(rating::Column::ExpertId.eq(user_id))).await
     }
 
     pub async fn update(state: &AppState, payload: UpdateRatingRequest) -> Result<(), AppError> {

@@ -4,6 +4,16 @@ use macros::IntoDataResponse;
 use sea_orm::{DeriveIntoActiveModel, DerivePartialModel, prelude::Uuid};
 use serde::{Deserialize, Serialize};
 
+#[derive(Deserialize)]
+pub struct MarketPaginationParams {
+    pub page: u64,
+    pub page_size: u64,
+    pub search_text: Option<String>,
+    pub selected_statuses: Option<Vec<MarketStatus>>,
+    pub order_by: Option<String>,
+    pub by_descending: Option<bool>
+}
+
 #[derive(Serialize, IntoDataResponse, Debug, Deserialize, DerivePartialModel)]
 #[sea_orm(entity = "entity::market::Entity")]
 pub struct MarketDto {

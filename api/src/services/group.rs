@@ -1,7 +1,8 @@
 use crate::{
     AppState,
     dtos::{
-        group::{CreateGroupRequest, GroupDto, UpdateGroupRequest},
+        common::PaginatedResponse,
+        group::{CreateGroupRequest, GroupDto, GroupPaginationParams, UpdateGroupRequest},
         user::UserDto,
     },
     error::AppError,
@@ -12,19 +13,33 @@ use entity::{
     users,
 };
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, IntoActiveModel, QueryFilter,
-    TransactionTrait, prelude::Uuid, sea_query,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter, TransactionTrait, prelude::Uuid, sea_query
 };
 
 pub struct GroupService;
 
 impl GroupService {
-    pub async fn get_all(state: &AppState) -> Vec<GroupDto> {
-        Group::find()
-            .into_partial_model()
-            .all(&state.conn)
-            .await
-            .unwrap_or_default()
+    pub async fn get_all(
+        state: &AppState,
+        pagination: GroupPaginationParams,
+    ) -> Result<PaginatedResponse<GroupDto>, AppError> {
+
+        let mut condition = Condition::all();
+
+        if let Some(search_text) = pagination.search_text {
+            condition = condition.add(group::Column::Name.ilike(format!("%{}%", search_text)));
+        }
+        if let Some(selected_roles) = pagination.selected_roles {
+            condition = condition.add(group::Column::Roles.eq(selected_roles));
+        }
+
+        let query = Group::find().filter(condition).into_partial_model();
+
+        let paginator = query.paginate(&state.conn, pagination.page_size);
+        let count = paginator.num_items().await.unwrap_or(0);
+        let list = paginator.fetch_page(pagination.page).await.unwrap_or_default();
+
+        Ok(PaginatedResponse { count, list })
     }
 
     pub async fn get_one(state: &AppState, id: Uuid) -> Result<GroupDto, AppError> {

@@ -1,26 +1,42 @@
 use crate::{
     AppState,
-    dtos::skill::{CreateSkillRequest, SkillDto, UpdateSkillRequest},
+    dtos::{common::PaginatedResponse, skill::{CreateSkillRequest, SkillDto, SkillPaginationParams, UpdateSkillRequest}},
     error::AppError,
 };
 use chrono::Local;
 use entity::{prelude::*, skill, skill_type::SkillType};
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, ExprTrait, IntoActiveModel,
-    QueryFilter, prelude::Uuid,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, EntityTrait, ExprTrait, IntoActiveModel, PaginatorTrait, QueryFilter, prelude::Uuid
 };
 use std::collections::HashMap;
 
 pub struct SkillService;
 
 impl SkillService {
-    pub async fn get_all(state: &AppState) -> Vec<SkillDto> {
-        Skill::find()
+    pub async fn get_all(state: &AppState, pagination: SkillPaginationParams) -> Result<PaginatedResponse<SkillDto>, AppError> {
+        
+        let mut condition = Condition::all();
+
+        if let Some(search_text) = pagination.search_text {
+            condition = condition.add(skill::Column::Name.ilike(format!("%{}%", search_text)));
+        }
+        if let Some(confirmed) = pagination.confirmed {
+            condition = condition.add(skill::Column::Confirmed.eq(confirmed));
+        }
+        if let Some(skill_types) = pagination.skill_types {
+            condition = condition.add(skill::Column::SkillType.is_in(skill_types));
+        }
+
+        let query = Skill::find()
             .filter(skill::Column::DeletedAt.is_null())
-            .into_partial_model::<SkillDto>()
-            .all(&state.conn)
-            .await
-            .unwrap_or_default()
+            .filter(condition)
+            .into_partial_model();
+
+        let paginator = query.paginate(&state.conn, pagination.page_size);
+        let count = paginator.num_items().await.unwrap_or(0);
+        let list = paginator.fetch_page(pagination.page).await.unwrap_or_default();
+
+        Ok(PaginatedResponse { count, list })
     }
 
     pub async fn get_all_my_or_confirmed(

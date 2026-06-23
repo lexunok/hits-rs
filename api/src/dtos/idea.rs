@@ -8,6 +8,15 @@ use sea_orm::{
 use serde::{Deserialize, Serialize};
 use validator::{Validate, ValidationError};
 
+
+#[derive(Deserialize)]
+pub struct IdeaPaginationParams {
+    pub page: u64,
+    pub page_size: u64,
+    pub search_text: Option<String>,
+    pub status_types: Option<Vec<IdeaStatus>>
+}
+
 fn validate_create_idea_status(value: &IdeaStatus) -> Result<(), ValidationError> {
     match value {
         IdeaStatus::New | IdeaStatus::OnApproval => Ok(()),

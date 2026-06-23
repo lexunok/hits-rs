@@ -1,7 +1,10 @@
 use crate::{
     AppState,
-    dtos::market::{
-        CreateMarketRequest, MarketDto, UpdateMarketRequest, UpdateMarketStatusRequest,
+    dtos::{
+        common::PaginatedResponse,
+        market::{
+            CreateMarketRequest, MarketDto, MarketPaginationParams, UpdateMarketRequest, UpdateMarketStatusRequest
+        },
     },
     error::AppError,
 };
@@ -10,26 +13,59 @@ use entity::{
     market_status::MarketStatus, prelude::Market, team,
 };
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel, QueryFilter, Set,
-    TransactionTrait,
-    prelude::Uuid,
-    sea_query::Expr,
+    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel, Order, PaginatorTrait, QueryFilter, QueryOrder, Set, TransactionTrait, prelude::Uuid, sea_query::Expr
 };
 
 pub struct MarketService;
 
 impl MarketService {
-    pub async fn get_all(state: &AppState, filter: Option<Expr>) -> Vec<MarketDto> {
+    pub async fn get_all(
+        state: &AppState,
+        pagination: MarketPaginationParams,
+    ) -> Result<PaginatedResponse<MarketDto>, AppError> {
+
+        let mut condition = Condition::all();
+        let mut order = Order::Asc;
+
+        if let Some(search_text) = pagination.search_text {
+            condition = condition.add(market::Column::Name.ilike(format!("%{}%", search_text)));
+        }
+        if let Some(selected_statuses) = pagination.selected_statuses {
+            condition = condition.add(market::Column::Status.is_in(selected_statuses));
+        }
+        if let Some(by_descending) = pagination.by_descending {
+            if by_descending {
+                order = Order::Desc
+            }
+        }
+
+        let col = match pagination.order_by.as_deref() {
+            Some("start_date") => market::Column::StartDate,
+            Some("finish_date") => market::Column::FinishDate,
+            _ => market::Column::Id
+        };
+
+        let query = Market::find()
+            .filter(condition)
+            .order_by(col, order)
+            .into_partial_model();
+
+        let paginator = query.paginate(&state.conn, pagination.page_size);
+        let count = paginator.num_items().await.unwrap_or(0);
+        let list = paginator.fetch_page(pagination.page).await.unwrap_or_default();
+
+        Ok(PaginatedResponse { count, list })
+    }
+
+    pub async fn get_all_active(
+        state: &AppState
+    ) -> Vec<MarketDto> {
         Market::find()
-            .filter(Condition::all().add_option(filter))
+            .filter(market::Column::Status.eq(MarketStatus::Active))
             .into_partial_model()
             .all(&state.conn)
             .await
             .unwrap_or_default()
-    }
-
-    pub async fn get_all_active(state: &AppState) -> Vec<MarketDto> {
-        Self::get_all(state, Some(market::Column::Status.eq(MarketStatus::Active))).await
     }
 
     pub async fn get_one(state: &AppState, id: Uuid) -> Result<MarketDto, AppError> {

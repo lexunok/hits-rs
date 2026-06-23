@@ -5,6 +5,12 @@ use sea_orm::{DeriveIntoActiveModel, DerivePartialModel, prelude::Uuid};
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
+#[derive(Deserialize)]
+pub struct RatingQuery {
+    pub is_confirmed: bool
+}
+
+
 #[derive(Serialize, IntoDataResponse, Debug, DerivePartialModel)]
 #[sea_orm(entity = "entity::rating::Entity")]
 pub struct RatingDto {
