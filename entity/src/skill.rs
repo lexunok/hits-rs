@@ -23,6 +23,8 @@ pub struct Model {
     pub ideas: HasMany<super::idea::Entity>,
     #[sea_orm(has_many, via = "user_skill")]
     pub users: HasMany<super::users::Entity>,
+    // #[sea_orm(has_many)]
+    // pub user_skills: HasMany<super::user_skill::Entity>,
 }
 
 impl ActiveModelBehavior for ActiveModel {}

@@ -13,6 +13,7 @@ use entity::{
     users,
 };
 use sea_orm::{
+    sea_query::{Expr, ExprTrait, BinOper, extension::postgres::PgBinOper},
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, EntityTrait, IntoActiveModel, PaginatorTrait, QueryFilter, TransactionTrait, prelude::Uuid, sea_query
 };
 
@@ -30,7 +31,10 @@ impl GroupService {
             condition = condition.add(group::Column::Name.ilike(format!("%{}%", search_text)));
         }
         if let Some(selected_roles) = pagination.selected_roles {
-            condition = condition.add(group::Column::Roles.eq(selected_roles));
+            condition = condition.add(
+                Expr::col(group::Column::Roles)
+                    .binary(BinOper::PgOperator(PgBinOper::Overlap), Expr::val(selected_roles))
+            );
         }
 
         let query = Group::find().filter(condition).into_partial_model();

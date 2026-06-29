@@ -1,8 +1,8 @@
 use crate::{
     AppState,
     dtos::{
-        common::{MessageResponse, PaginatedResponse, PaginationParams},
-        user::{UserCreatePayload, UserDto, UserUpdatePayload},
+        common::{MessageResponse, PaginatedResponse},
+        user::{UserCreatePayload, UserDto, UserPaginationParams, UserUpdatePayload},
     },
     error::AppError,
     services::user::UserService,
@@ -30,7 +30,7 @@ pub fn user_router() -> Router<AppState> {
 async fn get_all_users(
     State(state): State<AppState>,
     _: Claims,
-    Query(pagination): Query<PaginationParams>,
+    Query(pagination): Query<UserPaginationParams>,
 ) -> Result<PaginatedResponse<UserDto>, AppError> {
     UserService::get_all(&state, pagination).await
 }

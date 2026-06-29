@@ -4,7 +4,7 @@ use crate::{
     error::AppError,
 };
 use chrono::Local;
-use entity::{prelude::*, skill, skill_type::SkillType};
+use entity::{prelude::*, skill, skill_type::SkillType, users};
 use sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, EntityTrait, ExprTrait, IntoActiveModel, PaginatorTrait, QueryFilter, prelude::Uuid
 };
@@ -38,7 +38,16 @@ impl SkillService {
 
         Ok(PaginatedResponse { count, list })
     }
-
+    pub async fn get_all_by_user(state: &AppState, user_id: Uuid) -> Vec<SkillDto>{
+        Skill::find()
+            .inner_join(Users)
+            .filter(users::Column::Id.eq(user_id))
+            .filter(skill::Column::DeletedAt.is_null())
+            .into_partial_model()
+            .all(&state.conn)
+            .await
+            .unwrap_or_default()
+    }
     pub async fn get_all_my_or_confirmed(
         state: &AppState,
         user_id: Uuid,

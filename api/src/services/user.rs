@@ -1,8 +1,8 @@
 use crate::{
     AppState,
     dtos::{
-        common::{PaginatedResponse, PaginationParams},
-        user::{UserCreatePayload, UserDto, UserUpdatePayload},
+        common::PaginatedResponse,
+        user::{UserCreatePayload, UserDto, UserPaginationParams, UserUpdatePayload},
     },
     error::AppError,
     utils::security::hash_password,
@@ -13,9 +13,8 @@ use entity::{
 };
 use itertools::Itertools;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, ExprTrait, IntoActiveModel,
-    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, QueryTrait, prelude::Uuid,
-    sea_query::Expr,
+    sea_query::{Expr, ExprTrait, BinOper, extension::postgres::PgBinOper},
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, EntityTrait, IntoActiveModel, Order, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, QueryTrait, prelude::Uuid,
 };
 use serde_json::json;
 
@@ -24,11 +23,37 @@ pub struct UserService;
 impl UserService {
     pub async fn get_all(
         state: &AppState,
-        pagination: PaginationParams,
+        pagination: UserPaginationParams,
     ) -> Result<PaginatedResponse<UserDto>, AppError> {
+        let mut condition = Condition::all().add(users::Column::IsDeleted.eq(false));
+        let mut order = Order::Asc;
+
+        if let Some(search_text) = pagination.search_text {
+            condition = condition.add(users::Column::FirstName.ilike(format!("%{}%", search_text))
+                .or(users::Column::LastName.ilike(format!("%{}%", search_text))));
+        }
+        if let Some(ignored_ids) = pagination.ignored_ids {
+            condition = condition.add(users::Column::Id.is_not_in(ignored_ids));
+        }
+        if let Some(ignored_team) = pagination.ignored_team {
+            condition = condition.add(team_member::Column::TeamId.ne(ignored_team));
+        }
+        if let Some(selected_roles) = pagination.selected_roles {
+            condition = condition.add(
+                Expr::col(users::Column::Roles)
+                    .binary(BinOper::PgOperator(PgBinOper::Overlap), Expr::val(selected_roles))
+            );
+        }
+        if let Some(by_descending) = pagination.by_descending {
+            if by_descending {
+                order = Order::Desc
+            }
+        }
+
         let query = Users::find()
-            .filter(users::Column::IsDeleted.eq(false))
-            .order_by_desc(users::Column::CreatedAt)
+            .inner_join(TeamMember)
+            .filter(condition)
+            .order_by(users::Column::CreatedAt, order)
             .into_partial_model();
 
         let paginator = query.paginate(&state.conn, pagination.page_size);

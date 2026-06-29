@@ -9,6 +9,21 @@ use validator::Validate;
 
 use crate::dtos::skill::SkillDto;
 
+#[derive(Deserialize)]
+pub struct UserPaginationParams {
+    pub page: u64,
+    pub page_size: u64,
+    pub search_text: Option<String>,
+
+    pub order_by: Option<String>,
+    pub by_descending: Option<bool>,
+    pub in_team: Option<bool>,
+    pub ignored_team: Option<Uuid>,
+
+    pub selected_roles: Option<Vec<Role>>,
+    pub ignored_ids: Option<Vec<Uuid>>
+}
+
 impl From<users::ModelEx> for UserDto {
     fn from(u: users::ModelEx) -> Self {
         Self {

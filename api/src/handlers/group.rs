@@ -1,7 +1,7 @@
 use crate::{
     AppState,
     dtos::{
-        common::{MessageResponse, PaginatedResponse, PaginationParams},
+        common::{MessageResponse, PaginatedResponse},
         group::{CreateGroupRequest, GroupDto, GroupPaginationParams, UpdateGroupRequest},
     },
     error::AppError,
