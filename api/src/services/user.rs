@@ -38,6 +38,13 @@ impl UserService {
         if let Some(ignored_team) = pagination.ignored_team {
             condition = condition.add(team_member::Column::TeamId.ne(ignored_team));
         }
+        if let Some(in_team) = pagination.in_team {
+            if in_team {
+                condition = condition.add(team_member::Column::UserId.is_not_null());
+            } else {
+                condition = condition.add(team_member::Column::UserId.is_null());
+            }
+        }
         if let Some(selected_roles) = pagination.selected_roles {
             condition = condition.add(
                 Expr::col(users::Column::Roles)
@@ -51,7 +58,7 @@ impl UserService {
         }
 
         let query = Users::find()
-            .inner_join(TeamMember)
+            .left_join(TeamMember)
             .filter(condition)
             .order_by(users::Column::CreatedAt, order)
             .into_partial_model();

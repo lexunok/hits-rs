@@ -1,7 +1,7 @@
 use crate::{
     AppState,
     dtos::{
-        common::MessageResponse,
+        common::{MessageResponse, PaginatedResponse, PaginationParams},
         project::{
             FinishProjectRequest, ProjectDto, ProjectMarksDto, ProjectMemberDto,
             AddToProjectRequest,
@@ -13,7 +13,7 @@ use crate::{
 };
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     routing::{delete, get, post, put},
 };
 use macros::has_any_role;
@@ -22,8 +22,8 @@ use sea_orm::prelude::Uuid;
 pub fn project_router() -> Router<AppState> {
     Router::new()
         .route("/", get(get_all_projects))
-        .route("/my", get(get_my_projects))
-        .route("/my/active", get(get_my_active_projects))
+        // .route("/my", get(get_my_projects))
+        .route("/active", get(get_my_active_projects))
         .route("/create/{idea_market_id}", post(create_project))
         .route("/{project_id}", get(get_project_by_id).delete(delete_project))
         .route("/members/{project_id}", get(get_project_members).post(add_member))
@@ -37,24 +37,24 @@ pub fn project_router() -> Router<AppState> {
 async fn get_all_projects(
     State(state): State<AppState>,
     _claims: Claims,
-) -> Result<Json<Vec<ProjectDto>>, AppError> {
-    let projects = ProjectService::get_all(&state).await?;
-    Ok(Json(projects))
+    Query(pagination): Query<PaginationParams>,
+) -> Result<PaginatedResponse<ProjectDto>, AppError> {
+    ProjectService::get_all(&state, pagination).await
 }
 
-async fn get_my_projects(
-    State(state): State<AppState>,
-    claims: Claims,
-) -> Result<Json<Vec<ProjectDto>>, AppError> {
-    let projects = ProjectService::get_by_user(&state, claims.sub).await?;
-    Ok(Json(projects))
-}
+// async fn get_my_projects(
+//     State(state): State<AppState>,
+//     claims: Claims,
+//     Query(pagination): Query<PaginationParams>,
+// ) -> Result<PaginatedResponse<ProjectDto>, AppError> {
+//     ProjectService::get_by_user(&state, claims.sub, pagination).await
+// }
 
 async fn get_my_active_projects(
     State(state): State<AppState>,
     claims: Claims,
 ) -> Result<Json<Vec<ProjectDto>>, AppError> {
-    let projects = ProjectService::get_active_by_user(&state, claims.sub).await?;
+    let projects = ProjectService::get_all_active(&state, claims.sub).await?;
     Ok(Json(projects))
 }
 

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use chrono::Local;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, EntityTrait, ExprTrait, IntoActiveModel, JoinType,
-    QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
+    PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
     prelude::Uuid,
     sea_query::{Expr, Query},
 };
@@ -11,6 +11,7 @@ use sea_orm::{
 use crate::{
     AppState,
     dtos::{
+        common::{PaginatedResponse, PaginationParams},
         project::{
             AddToProjectRequest, ProjectBaseRow, ProjectDto, ProjectMarksDto, ProjectMarksRow,
             ProjectMemberDto, ProjectMemberRow, ProjectTaskRow, ProjectTeamDto, ReportProjectDto,
@@ -36,8 +37,9 @@ impl ProjectService {
     async fn get_base_projects(
         state: &AppState,
         filter: Option<Condition>,
+        pagination: Option<&PaginationParams>,
     ) -> Result<Vec<ProjectBaseRow>, AppError> {
-        Ok(entity::prelude::Project::find()
+        let mut q = entity::prelude::Project::find()
             .join(JoinType::InnerJoin, project::Relation::Idea.def())
             .join(JoinType::InnerJoin, idea::Relation::Users.def())
             .join(JoinType::InnerJoin, project::Relation::Team.def())
@@ -66,8 +68,22 @@ impl ProjectService {
             )
             .filter(Condition::all().add_option(filter))
             .order_by_asc(project::Column::StartDate)
-            .into_model()
-            .all(&state.conn)
+            .into_model();
+
+        if let Some(p) = pagination {
+            q = q.limit(p.page_size).offset(p.page * p.page_size);
+        }
+
+        Ok(q.all(&state.conn).await?)
+    }
+
+    async fn count_projects(
+        state: &AppState,
+        filter: Option<Condition>,
+    ) -> Result<u64, AppError> {
+        Ok(Project::find()
+            .filter(Condition::all().add_option(filter))
+            .count(&state.conn)
             .await?)
     }
 
@@ -265,8 +281,9 @@ impl ProjectService {
     async fn build_projects(
         state: &AppState,
         filter: Option<Condition>,
+        pagination: Option<&PaginationParams>,
     ) -> Result<Vec<ProjectDto>, AppError> {
-        let rows = Self::get_base_projects(state, filter).await?;
+        let rows = Self::get_base_projects(state, filter, pagination).await?;
         let project_ids: Vec<Uuid> = rows.iter().map(|row| row.id).collect();
         let members_map = Self::get_members_map(state, &project_ids, false).await?;
         let marks_map = Self::get_marks_map(state, &project_ids).await?;
@@ -303,60 +320,64 @@ impl ProjectService {
             .collect())
     }
 
-    pub async fn get_all(state: &AppState) -> Result<Vec<ProjectDto>, AppError> {
-        Self::build_projects(state, None).await
+    pub async fn get_all(
+        state: &AppState,
+        pagination: PaginationParams,
+    ) -> Result<PaginatedResponse<ProjectDto>, AppError> {
+        let filter = None;
+        let count = Self::count_projects(state, filter.clone()).await?;
+        let list = Self::build_projects(state, filter, Some(&pagination)).await?;
+        Ok(PaginatedResponse { count, list })
     }
 
-    pub async fn get_by_user(
-        state: &AppState,
-        user_id: Uuid,
-    ) -> Result<Vec<ProjectDto>, AppError> {
-        Self::build_projects(
-            state,
-            Some(
-                Condition::all()
-                    .add(project::Column::Status.ne(ProjectStatus::Deleted))
-                    .add(
-                        project::Column::Id.in_subquery(
-                            Query::select()
-                                .column(project_member::Column::ProjectId)
-                                .from(project_member::Entity)
-                                .and_where(project_member::Column::UserId.eq(user_id))
-                                .to_owned(),
-                        ),
-                    ),
-            ),
-        )
-        .await
-    }
+    // pub async fn get_by_user(
+    //     state: &AppState,
+    //     user_id: Uuid,
+    //     pagination: PaginationParams,
+    // ) -> Result<PaginatedResponse<ProjectDto>, AppError> {
+    //     let filter = Some(
+    //         Condition::all()
+    //             .add(project::Column::Status.ne(ProjectStatus::Deleted))
+    //             .add(
+    //                 project::Column::Id.in_subquery(
+    //                     Query::select()
+    //                         .column(project_member::Column::ProjectId)
+    //                         .from(project_member::Entity)
+    //                         .and_where(project_member::Column::UserId.eq(user_id))
+    //                         .to_owned(),
+    //                 ),
+    //             ),
+    //     );
+    //     let count = Self::count_projects(state, filter.clone()).await?;
+    //     let list = Self::build_projects(state, filter, Some(&pagination)).await?;
+    //     Ok(PaginatedResponse { count, list })
+    // }
 
-    pub async fn get_active_by_user(
+    pub async fn get_all_active(
         state: &AppState,
-        user_id: Uuid,
-    ) -> Result<Vec<ProjectDto>, AppError> {
-        Self::build_projects(
-            state,
-            Some(
-                Condition::all()
-                    .add(project::Column::Status.eq(ProjectStatus::Active))
-                    .add(
-                        project::Column::Id.in_subquery(
-                            Query::select()
-                                .column(project_member::Column::ProjectId)
-                                .from(project_member::Entity)
-                                .and_where(project_member::Column::UserId.eq(user_id))
-                                .to_owned(),
-                        ),
+        user_id: Uuid
+    ) -> Vec<ProjectDto> {
+        let filter = Some(
+            Condition::all()
+                .add(project::Column::Status.eq(ProjectStatus::Active))
+                .add(
+                    project::Column::Id.in_subquery(
+                        Query::select()
+                            .column(project_member::Column::ProjectId)
+                            .from(project_member::Entity)
+                            .and_where(project_member::Column::UserId.eq(user_id))
+                            .to_owned(),
                     ),
-            ),
-        )
-        .await
+                ),
+        );
+        Self::build_projects(state, filter, None).await.unwrap_or_default()
     }
 
     pub async fn get_one(state: &AppState, project_id: Uuid) -> Result<ProjectDto, AppError> {
         Self::build_projects(
             state,
             Some(Condition::all().add(project::Column::Id.eq(project_id))),
+            None,
         )
         .await?
         .into_iter()
