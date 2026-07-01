@@ -1,10 +1,9 @@
 use crate::{
     AppState,
     dtos::{
-        common::{MessageResponse, PaginatedResponse, PaginationParams},
+        common::{MessageResponse, PaginatedResponse},
         project::{
-            FinishProjectRequest, ProjectDto, ProjectMarksDto, ProjectMemberDto,
-            AddToProjectRequest,
+            AddToProjectRequest, FinishProjectRequest, ProjectDto, ProjectMarksDto, ProjectMemberDto, ProjectPaginationParams
         },
     },
     error::AppError,
@@ -23,7 +22,7 @@ pub fn project_router() -> Router<AppState> {
     Router::new()
         .route("/", get(get_all_projects))
         // .route("/my", get(get_my_projects))
-        .route("/active", get(get_my_active_projects))
+        .route("/active", get(get_active_projects).put(active_project))
         .route("/create/{idea_market_id}", post(create_project))
         .route("/{project_id}", get(get_project_by_id).delete(delete_project))
         .route("/members/{project_id}", get(get_project_members).post(add_member))
@@ -37,7 +36,7 @@ pub fn project_router() -> Router<AppState> {
 async fn get_all_projects(
     State(state): State<AppState>,
     _claims: Claims,
-    Query(pagination): Query<PaginationParams>,
+    Query(pagination): Query<ProjectPaginationParams>,
 ) -> Result<PaginatedResponse<ProjectDto>, AppError> {
     ProjectService::get_all(&state, pagination).await
 }
@@ -50,12 +49,12 @@ async fn get_all_projects(
 //     ProjectService::get_by_user(&state, claims.sub, pagination).await
 // }
 
-async fn get_my_active_projects(
+async fn get_active_projects(
     State(state): State<AppState>,
     claims: Claims,
-) -> Result<Json<Vec<ProjectDto>>, AppError> {
-    let projects = ProjectService::get_all_active(&state, claims.sub).await?;
-    Ok(Json(projects))
+) -> Json<Vec<ProjectDto>> {
+    let projects = ProjectService::get_all_active(&state, claims.sub).await;
+    Json(projects)
 }
 
 async fn get_project_by_id(
@@ -117,7 +116,17 @@ async fn kick_member_from_project_and_team(
         message: "Участник удален из проекта".to_string(),
     })
 }
-
+#[has_any_role(Admin, TeamLeader, ProjectOffice)]
+async fn active_project(
+    State(state): State<AppState>,
+    claims: Claims,
+    Path(project_id): Path<Uuid>,
+) -> Result<MessageResponse, AppError> {
+    ProjectService::active(&state, project_id).await?;
+    Ok(MessageResponse {
+        message: "Проект активирован".to_string(),
+    })
+}
 #[has_any_role(Admin, TeamLeader, ProjectOffice)]
 async fn pause_project(
     State(state): State<AppState>,

@@ -15,7 +15,6 @@ pub struct UserPaginationParams {
     pub page_size: u64,
     pub search_text: Option<String>,
 
-    pub order_by: Option<String>,
     pub by_descending: Option<bool>,
     pub in_team: Option<bool>,
     pub ignored_team: Option<Uuid>,

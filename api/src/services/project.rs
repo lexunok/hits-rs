@@ -11,18 +11,16 @@ use sea_orm::{
 use crate::{
     AppState,
     dtos::{
-        common::{PaginatedResponse, PaginationParams},
+        common::PaginatedResponse,
         project::{
-            AddToProjectRequest, ProjectBaseRow, ProjectDto, ProjectMarksDto, ProjectMarksRow,
-            ProjectMemberDto, ProjectMemberRow, ProjectTaskRow, ProjectTeamDto, ReportProjectDto,
-            TaskDto,
+            AddToProjectRequest, ProjectBaseRow, ProjectDto, ProjectMarksDto, ProjectMarksRow, ProjectMemberDto, ProjectMemberRow, ProjectPaginationParams, ProjectTaskRow, ProjectTeamDto, ReportProjectDto, TaskDto
         },
         user::UserDto,
     },
     error::AppError,
     utils::query::load_tags_for_tasks,
 };
-use entity::{
+use entity::{ prelude::Project,
     idea, idea_market, project, project_marks, project_member,
     project_role::ProjectRole,
     project_status::ProjectStatus,
@@ -37,9 +35,9 @@ impl ProjectService {
     async fn get_base_projects(
         state: &AppState,
         filter: Option<Condition>,
-        pagination: Option<&PaginationParams>,
+        pagination: Option<ProjectPaginationParams>,
     ) -> Result<Vec<ProjectBaseRow>, AppError> {
-        let mut q = entity::prelude::Project::find()
+        let q = entity::prelude::Project::find()
             .join(JoinType::InnerJoin, project::Relation::Idea.def())
             .join(JoinType::InnerJoin, idea::Relation::Users.def())
             .join(JoinType::InnerJoin, project::Relation::Team.def())
@@ -71,18 +69,18 @@ impl ProjectService {
             .into_model();
 
         if let Some(p) = pagination {
-            q = q.limit(p.page_size).offset(p.page * p.page_size);
+            Ok(q.paginate(&state.conn, p.page_size).fetch_page(p.page).await?)
+        } else {
+            Ok(q.all(&state.conn).await?)
         }
-
-        Ok(q.all(&state.conn).await?)
     }
 
     async fn count_projects(
         state: &AppState,
-        filter: Option<Condition>,
+        condition: Condition
     ) -> Result<u64, AppError> {
         Ok(Project::find()
-            .filter(Condition::all().add_option(filter))
+            .filter(condition)
             .count(&state.conn)
             .await?)
     }
@@ -281,7 +279,7 @@ impl ProjectService {
     async fn build_projects(
         state: &AppState,
         filter: Option<Condition>,
-        pagination: Option<&PaginationParams>,
+        pagination: Option<ProjectPaginationParams>,
     ) -> Result<Vec<ProjectDto>, AppError> {
         let rows = Self::get_base_projects(state, filter, pagination).await?;
         let project_ids: Vec<Uuid> = rows.iter().map(|row| row.id).collect();
@@ -322,11 +320,19 @@ impl ProjectService {
 
     pub async fn get_all(
         state: &AppState,
-        pagination: PaginationParams,
+        pagination: ProjectPaginationParams,
     ) -> Result<PaginatedResponse<ProjectDto>, AppError> {
-        let filter = None;
-        let count = Self::count_projects(state, filter.clone()).await?;
-        let list = Self::build_projects(state, filter, Some(&pagination)).await?;
+        
+        let mut condition = Condition::all();
+
+        if let Some(search_text) = pagination.search_text.as_ref() {
+            condition = condition.add(idea::Column::Name.ilike(format!("%{}%", search_text)));
+        }
+        if let Some(selected_status) = pagination.selected_status.as_ref() {
+            condition = condition.add(project::Column::Status.eq(selected_status.to_string()));
+        }
+        let count = Self::count_projects(state, condition.clone()).await?;
+        let list = Self::build_projects(state, Some(condition), Some(pagination)).await?;
         Ok(PaginatedResponse { count, list })
     }
 
@@ -557,7 +563,7 @@ impl ProjectService {
     }
 
     pub async fn pause(state: &AppState, project_id: Uuid) -> Result<(), AppError> {
-        let mut project = entity::prelude::Project::find_by_id(project_id)
+        let mut project = Project::find_by_id(project_id)
             .one(&state.conn)
             .await?
             .ok_or(AppError::NotFound)?
@@ -567,7 +573,17 @@ impl ProjectService {
         project.update(&state.conn).await?;
         Ok(())
     }
+    pub async fn active(state: &AppState, project_id: Uuid) -> Result<(), AppError> {
+        let mut project = Project::find_by_id(project_id)
+            .one(&state.conn)
+            .await?
+            .ok_or(AppError::NotFound)?
+            .into_active_model();
 
+        project.status = Set(ProjectStatus::Active);
+        project.update(&state.conn).await?;
+        Ok(())
+    }
     pub async fn finish(
         state: &AppState,
         project_id: Uuid,

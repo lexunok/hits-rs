@@ -28,6 +28,7 @@ validator = { version = "0.20.0", features = ["derive"] }
 tower-http = { version = "0.6.0", features = ["cors", "fs"] }
 image = "0.25.1"
 itertools = "0.14.0"
+tower_governor = "0.8.0"
 
 [dependencies.sea-orm]
 version = "2.0.0-rc.37"

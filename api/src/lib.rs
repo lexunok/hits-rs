@@ -5,7 +5,9 @@ use crate::{
 use axum::Router;
 use axum::http::{HeaderValue, Method, header};
 use migration::{Migrator, MigratorTrait};
-use sea_orm::{Database, DatabaseConnection};
+use sea_orm::{ConnectOptions, Database, DatabaseConnection};
+use tower_governor::GovernorLayer;
+use tower_governor::governor::GovernorConfigBuilder;
 use std::fs;
 use tower_http::cors::CorsLayer;
 
@@ -60,7 +62,13 @@ impl AppState {
 }
 
 pub async fn init_app_state() -> anyhow::Result<AppState> {
-    let conn = Database::connect(GLOBAL_CONFIG.db_url.to_owned()).await?;
+    let mut opt = ConnectOptions::new(GLOBAL_CONFIG.db_url.to_owned());
+
+    opt
+        .max_connections(20)
+        .min_connections(5);
+
+    let conn = Database::connect(opt).await?;   
     Migrator::up(&conn, None).await?;
     let redis_client = redis::Client::open(GLOBAL_CONFIG.redis_url.to_owned())?;
 
@@ -88,8 +96,16 @@ pub fn build_app(state: AppState) -> anyhow::Result<Router> {
 
     fs::create_dir_all(GLOBAL_CONFIG.avatar_path.clone())?;
 
+    let governor_conf = GovernorConfigBuilder::default()
+       .per_second(2)
+       .burst_size(5)
+       .finish()
+       .unwrap_or_default();
+
     Ok(Router::new()
         .nest("/api", main_router())
         .with_state(state)
-        .layer(cors))
+        .layer(cors)
+        .layer(GovernorLayer::new(governor_conf))
+        )
 }

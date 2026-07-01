@@ -1,5 +1,5 @@
 use chrono::Local;
-use sea_orm::{
+use sea_orm::{ PaginatorTrait,
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, IntoActiveModel, JoinType,
     QueryFilter, QueryOrder, QuerySelect, RelationTrait,
     prelude::Uuid,
@@ -8,10 +8,7 @@ use sea_orm::{
 use crate::{
     AppState,
     dtos::{
-        project::TaskDto,
-        tag::TagDto,
-        task_movement_log::{MoveTaskRequest, TaskMovementLogDto},
-        user::UserDto,
+        common::{PaginatedResponse, PaginationParams}, project::TaskDto, tag::TagDto, task_movement_log::{MoveTaskRequest, TaskMovementLogDto}, user::UserDto
     },
     error::AppError,
     utils::query::load_tags_for_tasks,
@@ -24,13 +21,14 @@ impl TaskMovementLogService {
     pub async fn get_all_by_task(
         state: &AppState,
         task_id: Uuid,
-    ) -> Result<Vec<TaskMovementLogDto>, AppError> {
+        pagination: PaginationParams
+    ) -> Result<PaginatedResponse<TaskMovementLogDto>, AppError> {
         let initiator = sea_orm::sea_query::Alias::new("t_initiator");
         let executor_task = sea_orm::sea_query::Alias::new("t_executor");
         let executor_log = sea_orm::sea_query::Alias::new("tml_executor");
         let user_log = sea_orm::sea_query::Alias::new("tml_user");
 
-        let rows: Vec<LogRow> = entity::prelude::TaskMovementLog::find()
+        let query: sea_orm::Selector<sea_orm::SelectModel<LogRow>> = entity::prelude::TaskMovementLog::find()
             .filter(task_movement_log::Column::TaskId.eq(task_id))
             // JOIN task
             .join(JoinType::LeftJoin, task_movement_log::Relation::Task.def())
@@ -76,16 +74,22 @@ impl TaskMovementLogService {
             .tbl_col_as((user_log.clone(), users::Column::FirstName), "tml_u_first_name")
             .tbl_col_as((user_log.clone(), users::Column::LastName), "tml_u_last_name")
             .order_by_asc(task_movement_log::Column::StartDate)
-            .into_model()
-            .all(&state.conn)
-            .await?;
+            .into_model();
+
+        let paginator = query.paginate(&state.conn, pagination.page_size);
+        let count = paginator.num_items().await.unwrap_or(0);
+        
+        let rows = paginator
+            .fetch_page(pagination.page)
+            .await
+            .unwrap_or_default();
 
         let tags: Vec<TagDto> = load_tags_for_tasks(state, &[task_id])
             .await?
             .remove(&task_id)
             .unwrap_or_default();
 
-        let mut result = Vec::new();
+        let mut list = Vec::new();
         let mut seen_ids = std::collections::HashSet::new();
 
         for row in rows {
@@ -122,7 +126,7 @@ impl TaskMovementLogService {
                 status: row.task_status,
             };
 
-            result.push(TaskMovementLogDto {
+            list.push(TaskMovementLogDto {
                 id: row.id,
                 task: task_dto,
                 executor: UserDto::from_parts_opt(row.tml_e_id, row.tml_e_email, row.tml_e_first_name, row.tml_e_last_name),
@@ -133,8 +137,7 @@ impl TaskMovementLogService {
                 status: row.status,
             });
         }
-
-        Ok(result)
+        Ok(PaginatedResponse { count, list })
     }
 
     pub async fn move_task(

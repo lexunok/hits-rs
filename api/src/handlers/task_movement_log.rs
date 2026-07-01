@@ -1,13 +1,13 @@
 use crate::{
     AppState,
-    dtos::task_movement_log::{MoveTaskRequest, TaskMovementLogDto},
+    dtos::{common::{PaginatedResponse, PaginationParams}, task_movement_log::{MoveTaskRequest, TaskMovementLogDto}},
     error::AppError,
     services::task_movement_log::TaskMovementLogService,
     utils::security::Claims,
 };
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     routing::{get, post},
 };
 use sea_orm::prelude::Uuid;
@@ -22,9 +22,9 @@ async fn get_all_by_task(
     State(state): State<AppState>,
     _: Claims,
     Path(task_id): Path<Uuid>,
-) -> Result<Json<Vec<TaskMovementLogDto>>, AppError> {
-    let logs = TaskMovementLogService::get_all_by_task(&state, task_id).await?;
-    Ok(Json(logs))
+    Query(params): Query<PaginationParams>
+) -> Result<PaginatedResponse<TaskMovementLogDto>, AppError> {
+    TaskMovementLogService::get_all_by_task(&state, task_id, params).await
 }
 
 async fn move_task(

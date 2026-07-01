@@ -1,7 +1,7 @@
 use crate::{
     AppState,
     dtos::{
-        common::MessageResponse,
+        common::{MessageResponse, PaginatedResponse, PaginationParams},
         sprint::{AddSprintMarkRequest, CreateSprintRequest, SprintDto, SprintMarkDto, UpdateSprintRequest},
     },
     error::AppError,
@@ -10,7 +10,7 @@ use crate::{
 };
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     routing::{delete, get, post, put},
 };
 use macros::has_any_role;
@@ -33,9 +33,9 @@ async fn get_all_sprints_by_project(
     State(state): State<AppState>,
     _: Claims,
     Path(project_id): Path<Uuid>,
-) -> Result<Json<Vec<SprintDto>>, AppError> {
-    let sprints = SprintService::get_sprints_by_project(&state, project_id).await?;
-    Ok(Json(sprints))
+    Query(pagination): Query<PaginationParams>,
+) -> Result<PaginatedResponse<SprintDto>, AppError> {
+    SprintService::get_sprints_by_project(&state, project_id, pagination).await
 }
 
 async fn get_sprint_by_id(

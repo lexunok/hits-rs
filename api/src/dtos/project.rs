@@ -10,6 +10,14 @@ use sea_orm::{
 };
 use serde::{Deserialize, Serialize};
 
+#[derive(Deserialize)]
+pub struct ProjectPaginationParams {
+    pub page: u64,
+    pub page_size: u64,
+    pub search_text: Option<String>,
+    pub selected_status: Option<ProjectStatus>
+}
+
 #[derive(IntoDataResponse, Serialize, Deserialize, Debug, Clone)]
 pub struct ProjectTeamDto {
     pub id: Uuid,

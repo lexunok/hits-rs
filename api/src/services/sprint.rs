@@ -1,25 +1,20 @@
 use chrono::{Local, NaiveDate};
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, IntoActiveModel, JoinType, QueryFilter,
-    QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
-    prelude::Uuid,
-    sea_query::Expr,
+use sea_orm::{PaginatorTrait, 
+    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, IntoActiveModel, JoinType, QueryFilter, QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait, prelude::Uuid, sea_query::Expr
 };
 
 use crate::{
     AppState,
     dtos::{
-        project::TaskDto,
-        sprint::{
+        common::{PaginatedResponse, PaginationParams}, project::TaskDto, sprint::{
             AddSprintMarkRequest, CreateSprintRequest, SprintDto, SprintMarkDto,
             UpdateSprintRequest,
-        },
-        user::UserDto,
+        }, user::UserDto
     },
     error::AppError,
     utils::query::load_tags_for_tasks,
 };
-use entity::{
+use entity::{ prelude::Sprint, 
     project_marks, project_role::ProjectRole, sprint, sprint_mark, sprint_status::SprintStatus,
     task, task_history, task_movement_log, task_status::TaskStatus, users,
 };
@@ -124,14 +119,25 @@ impl SprintService {
     pub async fn get_sprints_by_project(
         state: &AppState,
         project_id: Uuid,
-    ) -> Result<Vec<SprintDto>, AppError> {
-        let sprints = entity::prelude::Sprint::find()
-            .filter(sprint::Column::ProjectId.eq(project_id))
-            .order_by_desc(sprint::Column::StartDate)
-            .all(&state.conn)
-            .await?;
+        pagination: PaginationParams
+    ) -> Result<PaginatedResponse<SprintDto>, AppError> {
+        let mut condition = Condition::all();
 
-        Ok(sprints
+        if let Some(search_text) = pagination.search_text {
+            condition = condition.add(sprint::Column::Name.ilike(format!("%{}%", search_text)));
+        }
+
+        let query = Sprint::find()
+            .filter(sprint::Column::ProjectId.eq(project_id))
+            .filter(condition)
+            .order_by_desc(sprint::Column::StartDate);
+
+        let paginator = query.paginate(&state.conn, pagination.page_size);
+        let count = paginator.num_items().await.unwrap_or(0);
+        let list = paginator
+            .fetch_page(pagination.page)
+            .await
+            .unwrap_or_default()
             .into_iter()
             .map(|s| SprintDto {
                 id: s.id,
@@ -145,7 +151,8 @@ impl SprintService {
                 status: s.status,
                 tasks: Vec::new(),
             })
-            .collect())
+            .collect();
+        Ok(PaginatedResponse { count, list })
     }
 
     pub async fn get_sprint_by_id(

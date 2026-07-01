@@ -1,9 +1,9 @@
 use crate::{
     AppState,
     dtos::{
-        common::MessageResponse,
+        common::{MessageResponse, PaginatedResponse},
         project::TaskDto,
-        task::{CreateTaskRequest, UpdateTaskRequest},
+        task::{CreateTaskRequest, TaskPaginationParams, UpdateTaskRequest},
     },
     error::AppError,
     services::task::TaskService,
@@ -11,13 +11,14 @@ use crate::{
 };
 use axum::{
     Json, Router,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     routing::{delete, get, post, put},
 };
 use sea_orm::prelude::Uuid;
 
 pub fn task_router() -> Router<AppState> {
     Router::new()
+        .route("/all", get(get_all_tasks))
         .route("/project/all/{project_id}", get(get_all_by_project))
         .route("/project/backlog/{project_id}", get(get_backlog))
         .route("/project/sprint/{sprint_id}", get(get_by_sprint))
@@ -29,6 +30,14 @@ pub fn task_router() -> Router<AppState> {
         .route("/leader/comment/{task_id}", put(update_leader_comment))
         .route("/executor/comment/{task_id}", put(update_executor_comment))
         .route("/delete/{task_id}", delete(delete_task))
+}
+
+async fn get_all_tasks(
+    State(state): State<AppState>,
+    _: Claims,
+    Query(pagination): Query<TaskPaginationParams>
+) -> Result<PaginatedResponse<TaskDto>, AppError> {
+    TaskService::get_all(&state, pagination).await
 }
 
 async fn get_all_by_project(

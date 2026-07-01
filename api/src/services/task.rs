@@ -1,22 +1,17 @@
 use chrono::Local;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, ExprTrait, IntoActiveModel,
-    JoinType, QueryFilter, QueryOrder, QuerySelect, RelationTrait, TransactionTrait,
-    prelude::Uuid,
-    sea_query::Expr,
+    ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, EntityTrait, ExprTrait, IntoActiveModel, JoinType, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, RelationTrait, TransactionTrait, prelude::Uuid, sea_query::Expr
 };
 
 use crate::{
     AppState,
     dtos::{
-        project::TaskDto,
-        task::{CreateTaskRequest, UpdateTaskRequest},
-        user::UserDto,
+        common::PaginatedResponse, project::TaskDto, task::{CreateTaskRequest, TaskPaginationParams, UpdateTaskRequest}, user::UserDto
     },
     error::AppError,
     utils::query::load_tags_for_tasks,
 };
-use entity::{task, task_movement_log, task_status::TaskStatus, task_tag, users};
+use entity::{prelude::Task, task, task_movement_log, task_status::TaskStatus, task_tag, users};
 
 pub struct TaskService;
 
@@ -25,11 +20,12 @@ impl TaskService {
     async fn load_tasks(
         state: &AppState,
         filter: sea_orm::Condition,
+        params: Option<TaskPaginationParams>
     ) -> Result<Vec<TaskDto>, AppError> {
         let initiator = sea_orm::sea_query::Alias::new("initiator");
         let executor = sea_orm::sea_query::Alias::new("executor");
 
-        let rows: Vec<TaskRow> = entity::prelude::Task::find()
+        let q: sea_orm::Selector<sea_orm::SelectModel<TaskRow>> = entity::prelude::Task::find()
             .filter(filter)
             .join_as(JoinType::LeftJoin, task::Relation::Users1.def(), initiator.clone())
             .join_as(JoinType::LeftJoin, task::Relation::Users2.def(), executor.clone())
@@ -43,9 +39,13 @@ impl TaskService {
             .tbl_col_as((executor.clone(), users::Column::LastName), "executor_last_name")
             .order_by_asc(task::Column::Position)
             .order_by_asc(task::Column::StartDate)
-            .into_model()
-            .all(&state.conn)
-            .await?;
+            .into_model();
+        
+        let rows = if let Some(p) = params {
+            q.paginate(&state.conn, p.page_size).fetch_page(p.page).await?
+        } else {
+            q.all(&state.conn).await?
+        };
 
         let task_ids: Vec<Uuid> = rows.iter().map(|r| r.id).collect();
         let tags_map = load_tags_for_tasks(state, &task_ids).await?;
@@ -87,14 +87,51 @@ impl TaskService {
 
         Ok(tasks)
     }
+    async fn count_tasks(
+        state: &AppState,
+        condition: Condition
+    ) -> Result<u64, AppError> {
+        Ok(Task::find()
+            .filter(condition)
+            .count(&state.conn)
+            .await?)
+    }
 
     // ─── Публичные методы ────────────────────────────────────────────────────
+    pub async fn get_all(
+        state: &AppState,
+        pagination: TaskPaginationParams,
+    ) -> Result<PaginatedResponse<TaskDto>, AppError> {
+        let params = pagination.clone();
+        let mut condition = Condition::all();
+
+        if let Some(search_text) = pagination.search_text.as_ref() {
+            condition = condition.add(task::Column::Name.ilike(format!("%{}%", search_text)));
+        }
+        if let Some(sprint_id) = pagination.sprint_id {
+            condition = condition.add(task::Column::SprintId.eq(sprint_id));
+        }
+        if let Some(project_id) = pagination.project_id {
+            condition = condition.add(task::Column::ProjectId.eq(project_id));
+        }
+        if let Some(selected_executors) = pagination.selected_executors {
+            condition = condition.add(task::Column::ExecutorId.is_in(selected_executors));
+        }
+        if let Some(selected_statuses) = pagination.selected_statuses {
+            condition = condition.add(task::Column::Status.is_in(selected_statuses));
+        }
+
+        let count = Self::count_tasks(state, condition.clone()).await?;
+        let list = Self::load_tasks(state, condition, Some(params)).await?;
+
+        Ok(PaginatedResponse { count, list })
+    }
 
     pub async fn get_all_by_project(
         state: &AppState,
         project_id: Uuid,
     ) -> Result<Vec<TaskDto>, AppError> {
-        Self::load_tasks(state, sea_orm::Condition::all().add(task::Column::ProjectId.eq(project_id))).await
+        Self::load_tasks(state, sea_orm::Condition::all().add(task::Column::ProjectId.eq(project_id)), None).await
     }
 
     pub async fn get_backlog(
@@ -106,6 +143,7 @@ impl TaskService {
             sea_orm::Condition::all()
                 .add(task::Column::ProjectId.eq(project_id))
                 .add(task::Column::Status.eq(TaskStatus::InBackLog)),
+            None
         )
         .await
     }
@@ -114,11 +152,11 @@ impl TaskService {
         state: &AppState,
         sprint_id: Uuid,
     ) -> Result<Vec<TaskDto>, AppError> {
-        Self::load_tasks(state, sea_orm::Condition::all().add(task::Column::SprintId.eq(sprint_id))).await
+        Self::load_tasks(state, sea_orm::Condition::all().add(task::Column::SprintId.eq(sprint_id)), None).await
     }
 
     pub async fn get_one(state: &AppState, task_id: Uuid) -> Result<TaskDto, AppError> {
-        Self::load_tasks(state, sea_orm::Condition::all().add(task::Column::Id.eq(task_id)))
+        Self::load_tasks(state, sea_orm::Condition::all().add(task::Column::Id.eq(task_id)), None)
             .await?
             .into_iter()
             .next()
